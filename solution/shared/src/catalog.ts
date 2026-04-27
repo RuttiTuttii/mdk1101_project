@@ -1,9 +1,11 @@
 import type { CatalogFilters, Product, SortKey } from "./types";
 
+// расчет стоимости товара с учетом текущей скидки
 export function discountedPrice(product: Product) {
   return Math.round(product.price * (1 - product.discountPercent / 100) * 100) / 100;
 }
 
+// фильтрация и сортировка списка товаров по заданным критериям
 export function filterCatalog(products: Product[], filters: CatalogFilters) {
   const query = filters.search.trim().toLowerCase();
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : undefined;
@@ -23,6 +25,7 @@ export function filterCatalog(products: Product[], filters: CatalogFilters) {
     .sort((a, b) => compareProducts(a, b, filters.sortBy));
 }
 
+// функция сравнения товаров для сортировки
 function compareProducts(a: Product, b: Product, sortBy: SortKey) {
   if (sortBy === "supplier") {
     return a.supplier.localeCompare(b.supplier);
@@ -36,10 +39,12 @@ function compareProducts(a: Product, b: Product, sortBy: SortKey) {
   return a.name.localeCompare(b.name);
 }
 
+// формирование списка уникальных производителей
 export function uniqueManufacturers(products: Product[]) {
   return ["all", ...new Set(products.map((product) => product.manufacturer))];
 }
 
+// сбор статистических данных по списку товаров
 export function buildSummary(products: Product[]) {
   return {
     total: products.length,

@@ -1,28 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingBag, Tag, Package, Star, Filter, Search, Store } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { ProductCard } from "@shared/components/Catalog/ProductCard";
-import { type CatalogFilters, type Product } from "@shared/types";
-import { buildSummary } from "@shared/catalog";
-
-
-
-/**
- * главная страница каталога
- * тут и поиск, и фильтры, и сама витрина товаров
- */
+import { PixelIcon } from "../../components/Common/PixelIcon";
+import { ProductCard } from "../../components/Catalog/ProductCard";
+import { type CatalogFilters, type Product } from "../../types";
 
 interface CatalogPageProps {
-  featured?: Product;
-  summary: ReturnType<typeof buildSummary>;
+  summary: { total: number; manufacturers: number };
   products: Product[];
   manufacturers: string[];
   filters: CatalogFilters;
@@ -48,50 +30,68 @@ export function CatalogPage({
 }: CatalogPageProps) {
   return (
     <div className="space-y-6" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
-      {/* Шапка с названием и логотипом по ТЗ */}
-      <div className="flex items-center justify-between border-b-2 border-black pb-4">
+      {/* заголовок страницы и общая статистика */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col sm:flex-row items-center justify-between border-b-2 border-black pb-4 gap-4"
+      >
         <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white border border-black flex items-center justify-center p-2">
+            <motion.div 
+              whileHover={{ rotate: 360 }}
+              transition={{ duration: 1 }}
+              className="w-16 h-16 bg-white border border-black flex items-center justify-center p-2"
+            >
                 <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain" />
-            </div>
-            <div>
-                <h1 className="text-3xl font-bold uppercase tracking-tighter">Список товаров</h1>
-                <p className="text-sm opacity-70">Просмотр и поиск товаров в каталоге</p>
+            </motion.div>
+            <div className="text-center sm:text-left">
+                <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-tighter">Список товаров</h1>
+                <p className="text-xs sm:text-sm opacity-70">каталог доступной продукции</p>
             </div>
         </div>
         
-        <div className="text-right">
-            <div className="flex gap-4 text-xs font-bold uppercase">
+        <div className="text-right flex sm:flex-col gap-4 sm:gap-0">
+            <div className="flex gap-4 text-[10px] sm:text-xs font-bold uppercase">
                 <span>Товаров: {summary.total}</span>
                 <span>Брендов: {summary.manufacturers}</span>
             </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Фильтры и контент */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
-        {/* Панель фильтров слева */}
-        <div className="border-2 border-black p-6 space-y-6 bg-[#FFFFFF]">
-          <h2 className="text-xl font-bold border-b border-black pb-2">Фильтрация</h2>
+        {/* панель фильтрации товаров */}
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="border-2 border-black p-6 space-y-6 bg-[#FFFFFF] h-fit"
+        >
+          <div className="flex items-center justify-between border-b border-black pb-2">
+            <h2 className="text-xl font-bold">Фильтрация</h2>
+            <PixelIcon.Filter />
+          </div>
           
           <div className="space-y-4">
+            {/* поле текстового поиска */}
             <div className="space-y-1">
               <label className="text-sm font-bold block">Поиск по описанию:</label>
-              <input 
-                type="text" 
-                className="w-full border border-black p-2 bg-white" 
-                placeholder="введите текст..."
-                value={filters.search} 
-                onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })} 
-              />
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40"><PixelIcon.Search /></div>
+                <input 
+                  type="text" 
+                  className="w-full border border-black p-2 pl-9 bg-white focus:bg-[#E0F2FE] outline-none transition-colors" 
+                  placeholder="поиск..."
+                  value={filters.search} 
+                  onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })} 
+                />
+              </div>
             </div>
 
+            {/* выбор производителя */}
             <div className="space-y-1">
               <label className="text-sm font-bold block">Производитель:</label>
               <select 
-                className="w-full border border-black p-2 bg-white"
+                className="w-full border border-black p-2 bg-white cursor-pointer focus:bg-[#E0F2FE] outline-none"
                 value={filters.manufacturer} 
-                onValueChange={(v) => onFiltersChange({ ...filters, manufacturer: v })}
                 onChange={(e) => onFiltersChange({ ...filters, manufacturer: e.target.value })}
               >
                 {manufacturers.map((m) => (
@@ -102,20 +102,22 @@ export function CatalogPage({
               </select>
             </div>
 
+            {/* фильтр по максимальной цене */}
             <div className="space-y-1">
               <label className="text-sm font-bold block">Цена до:</label>
               <input 
                 type="number" 
-                className="w-full border border-black p-2 bg-white" 
+                className="w-full border border-black p-2 bg-white focus:bg-[#E0F2FE] outline-none" 
                 value={filters.maxPrice} 
                 onChange={(e) => onFiltersChange({ ...filters, maxPrice: e.target.value })} 
               />
             </div>
 
+            {/* параметры сортировки */}
             <div className="space-y-1">
               <label className="text-sm font-bold block">Сортировка:</label>
               <select 
-                className="w-full border border-black p-2 bg-white"
+                className="w-full border border-black p-2 bg-white cursor-pointer focus:bg-[#E0F2FE] outline-none"
                 value={filters.sortBy} 
                 onChange={(e) => onFiltersChange({ ...filters, sortBy: e.target.value as any })}
               >
@@ -126,67 +128,83 @@ export function CatalogPage({
               </select>
             </div>
 
+            {/* дополнительные фильтры-флаги */}
             <div className="space-y-2 pt-4">
               <label className="flex items-center gap-2 cursor-pointer group">
                 <input 
                     type="checkbox" 
-                    className="w-4 h-4"
+                    className="w-4 h-4 border-2 border-black rounded-none appearance-none checked:bg-black relative after:content-['✓'] after:absolute after:text-white after:hidden checked:after:block after:left-0.5 after:-top-0.5"
                     checked={filters.onlyDiscounted} 
                     onChange={(e) => onFiltersChange({ ...filters, onlyDiscounted: e.target.checked })} 
                 />
-                <span className="text-sm font-bold">Только со скидкой</span>
+                <span className="text-sm font-bold group-hover:underline">Только со скидкой</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer group">
                 <input 
                     type="checkbox" 
-                    className="w-4 h-4"
+                    className="w-4 h-4 border-2 border-black rounded-none appearance-none checked:bg-black relative after:content-['✓'] after:absolute after:text-white after:hidden checked:after:block after:left-0.5 after:-top-0.5"
                     checked={filters.onlyInStock} 
                     onChange={(e) => onFiltersChange({ ...filters, onlyInStock: e.target.checked })} 
                 />
-                <span className="text-sm font-bold">Только в наличии</span>
+                <span className="text-sm font-bold group-hover:underline">Только в наличии</span>
               </label>
             </div>
 
-            <button 
+            <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => onFiltersChange(defaultFilters)}
-                className="w-full py-2 border border-black hover:bg-black hover:text-white transition-colors uppercase text-xs font-bold"
+                className="w-full py-2 border border-black hover:bg-black hover:text-white transition-colors uppercase text-xs font-bold flex items-center justify-center gap-2"
             >
-              Сбросить все
-            </button>
+              <PixelIcon.Refresh />
+              Сбросить фильтры
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Список товаров */}
+        {/* основной список товаров */}
         <div className="space-y-4">
           {loading ? (
-            <div className="text-center py-20 text-2xl font-bold animate-pulse">Загрузка данных...</div>
-          ) : products.length === 0 ? (
-            <div className="border-2 border-black p-20 text-center">
-                <p className="text-2xl font-bold">Товары не найдены</p>
-                <p>Измените параметры поиска</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {products.map((product, index) => (
-                <ProductCard
-                  key={product.article}
-                  product={product}
-                  index={index}
-                  onOrder={onOrder}
-                  onOpen={() => onProduct(product.article)}
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    className="w-12 h-12 border-4 border-black border-t-transparent rounded-full"
                 />
-              ))}
+                <div className="text-2xl font-bold uppercase">загрузка...</div>
             </div>
+          ) : products.length === 0 ? (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="border-2 border-black p-10 sm:p-20 text-center"
+            >
+                <p className="text-xl sm:text-2xl font-bold uppercase mb-2">Товары не найдены</p>
+                <p className="opacity-60">измените параметры фильтрации</p>
+                <button 
+                  onClick={() => onFiltersChange(defaultFilters)}
+                  className="mt-6 px-6 py-2 border-2 border-black hover:bg-black hover:text-white transition-colors font-bold uppercase"
+                >
+                  сбросить фильтры
+                </button>
+            </motion.div>
+          ) : (
+            <motion.div layout className="flex flex-col gap-4">
+              <AnimatePresence mode="popLayout">
+                {products.map((product, index) => (
+                  <ProductCard
+                    key={product.article}
+                    product={product}
+                    index={index}
+                    onOrder={onOrder}
+                    onOpen={() => onProduct(product.article)}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-// иконка магазина, вынес чтобы не импортировать лишний раз
-function StoreIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/></svg>
   );
 }

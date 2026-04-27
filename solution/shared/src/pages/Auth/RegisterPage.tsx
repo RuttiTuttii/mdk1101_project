@@ -1,15 +1,6 @@
-import { Store } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { motion } from "framer-motion";
+import { PixelIcon } from "@shared/components/Common/PixelIcon";
 import { type Route } from "@shared/types";
-
-
-/**
- * страница регистрации
- * почти то же самое что и вход, только полей побольше
- */
 
 interface RegisterPageProps {
   busy: boolean;
@@ -27,45 +18,90 @@ export function RegisterPage({
   onNavigate,
 }: RegisterPageProps) {
   return (
-    <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="w-full max-w-md">
+    <div className="flex items-center justify-center py-10 lg:py-20 px-4" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-md w-full border-4 border-black p-6 sm:p-10 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+      >
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-            <Store className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold">Регистрация</h1>
-          <p className="text-muted-foreground">Создайте аккаунт, чтобы покупать обувь</p>
+          {/* графический элемент заголовка */}
+          <motion.div
+            whileHover={{ rotate: -15 }}
+            className="w-16 h-16 sm:w-20 sm:h-20 border-4 border-black bg-[#FFFFFF] mx-auto flex items-center justify-center mb-4"
+          >
+            <PixelIcon.UserPlus />
+          </motion.div>
+          <h1 className="text-3xl font-black uppercase tracking-tight">Регистрация</h1>
+          <p className="font-bold opacity-70">создание новой учетной записи</p>
         </div>
 
-        <Card>
-          <CardContent className="p-6">
-            <form onSubmit={onRegisterSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="reg-name" className="font-medium">ФИО</Label>
-                <Input id="reg-name" value={registerForm.fullName} onChange={(e) => onRegisterChange({ ...registerForm, fullName: e.target.value })} placeholder="Иванов Иван Иванович" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reg-login" className="font-medium">Логин</Label>
-                <Input id="reg-login" value={registerForm.login} onChange={(e) => onRegisterChange({ ...registerForm, login: e.target.value })} placeholder="your@email.com" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reg-password" className="font-medium">Пароль</Label>
-                <Input id="reg-password" type="password" value={registerForm.password} onChange={(e) => onRegisterChange({ ...registerForm, password: e.target.value })} placeholder="••••••••" required />
-              </div>
-              <Button type="submit" className="w-full font-bold shadow-lg shadow-primary/20" disabled={busy}>
-                {busy ? "Создание..." : "Зарегистрироваться"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        {/* форма регистрации пользователя */}
+        <form onSubmit={onRegisterSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="font-bold block uppercase text-[10px] opacity-60">Полное имя</label>
+            <input
+              type="text"
+              className="w-full border-2 border-black p-3 focus:bg-[#E0F2FE] outline-none font-bold"
+              value={registerForm.fullName}
+              onChange={(e) => onRegisterChange({ ...registerForm, fullName: e.target.value })}
+              required
+              placeholder="Иванов Иван Иванович"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="font-bold block uppercase text-[10px] opacity-60">Логин / Email</label>
+            <input
+              type="text"
+              className="w-full border-2 border-black p-3 focus:bg-[#E0F2FE] outline-none font-bold"
+              value={registerForm.login}
+              onChange={(e) => onRegisterChange({ ...registerForm, login: e.target.value })}
+              required
+              placeholder="ivanov@mail.ru"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="font-bold block uppercase text-[10px] opacity-60">Пароль</label>
+            <input
+              type="password"
+              className="w-full border-2 border-black p-3 focus:bg-[#E0F2FE] outline-none font-bold"
+              value={registerForm.password}
+              onChange={(e) => onRegisterChange({ ...registerForm, password: e.target.value })}
+              required
+              placeholder="••••••••"
+            />
+          </div>
 
-        <p className="text-center text-sm mt-4 text-muted-foreground">
-          Уже есть аккаунт?{" "}
-          <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => onNavigate({ name: "login" })}>
-            Войдите
-          </Button>
-        </p>
-      </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            type="submit"
+            className="w-full py-4 bg-[#c1ffcc] border-2 border-black font-black uppercase tracking-widest hover:bg-black hover:text-white transition-colors flex items-center justify-center gap-3"
+            disabled={busy}
+          >
+            {busy ? (
+              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <PixelIcon.Shield />
+                Создать аккаунт
+              </>
+            )}
+          </motion.button>
+        </form>
+
+        <div className="mt-8 text-center border-t-2 border-black pt-6">
+          <p className="font-bold mb-2">Уже есть аккаунт?</p>
+          <motion.button
+            whileHover={{ x: -5 }}
+            className="uppercase text-sm font-black underline flex items-center justify-center gap-2 mx-auto"
+            onClick={() => onNavigate({ name: "login" })}
+          >
+            <PixelIcon.ArrowLeft />
+            Войти в систему
+          </motion.button>
+        </div>
+      </motion.div>
     </div>
   );
 }

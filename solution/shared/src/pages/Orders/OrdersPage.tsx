@@ -1,19 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, ChevronRight, User, RefreshCw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PixelIcon } from "../../components/Common/PixelIcon";
 import { type ApiOrder, type AuthSession } from "@shared/types";
-import { formatMoney } from "@shared/lib/utils";
 
-
-/**
- * страница со списком заказов
- * админы видят всё, обычные люди — только свои
- */
-
-// маппинг статусов, чтобы не пугать юзеров английскими терминами
 const STATUS_MAP: Record<string, string> = {
   new: "Новый",
   processing: "В обработке",
@@ -21,10 +9,6 @@ const STATUS_MAP: Record<string, string> = {
   done: "Выполнен",
   canceled: "Отменён",
 };
-
-function displayStatus(status: string): string {
-  return STATUS_MAP[status] ?? status;
-}
 
 interface OrdersPageProps {
   auth: AuthSession | null;
@@ -43,161 +27,151 @@ export function OrdersPage({
   error,
   onGoLogin,
   onRefresh,
-  onUpdateStatus,
 }: OrdersPageProps) {
-  // если зашел аноним — отправляем его логиниться
+  {/* заглушка для неавторизованного пользователя */}
   if (!auth) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-8 shadow-inner">
-          <Package className="h-12 w-12 text-muted-foreground" />
-        </div>
-        <h2 className="text-3xl font-black tracking-tight mb-3">Ваши заказы</h2>
-        <p className="text-muted-foreground mb-10 max-w-sm text-lg">Войдите в систему, чтобы увидеть историю ваших покупок и управлять заказами</p>
-        <Button onClick={onGoLogin} size="lg" className="rounded-full px-12 font-bold shadow-xl shadow-primary/20">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center justify-center py-24 text-center border-4 border-black bg-white" 
+        style={{ fontFamily: "'Times New Roman', Times, serif" }}
+      >
+        <div className="h-20 w-20 mb-6"><PixelIcon.Package /></div>
+        <h2 className="text-3xl font-black uppercase mb-4">Ваши заказы</h2>
+        <p className="font-bold mb-8 max-w-sm">войдите в аккаунт для просмотра истории заказов</p>
+        <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onGoLogin}
+            className="px-10 py-4 border-4 border-black bg-[#00FA9A] font-black uppercase hover:bg-black hover:text-white transition-colors flex items-center gap-3"
+        >
+          <PixelIcon.Login />
           Войти в аккаунт
-        </Button>
-      </div>
+        </motion.button>
+      </motion.div>
     );
   }
 
   const isAdmin = auth.role === "admin" || auth.role === "manager";
 
   return (
-    <div className="min-h-[80vh] flex flex-col space-y-8 py-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b pb-8">
-        <div className="space-y-2">
-          <h2 className="text-4xl font-black tracking-tight">
+    <div className="space-y-8" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+      {/* панель управления списком заказов */}
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="flex flex-col sm:flex-row items-center justify-between border-b-4 border-black pb-6 gap-4"
+      >
+        <div className="text-center sm:text-left">
+          <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tighter">
             {isAdmin ? "Управление заказами" : "Мои заказы"}
           </h2>
-          <p className="text-muted-foreground text-lg">
-            {isAdmin ? "Просмотр и изменение статусов всех заказов в системе" : "История и текущее состояние ваших покупок"}
+          <p className="font-bold opacity-70">
+            {isAdmin ? "реестр всех заказов в информационной системе" : "история ваших покупок"}
           </p>
         </div>
-        <Button variant="outline" size="lg" onClick={onRefresh} disabled={loading} className="rounded-full gap-2">
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          Обновить
-        </Button>
-      </div>
+        <motion.button 
+            whileHover={{ rotate: 180 }}
+            onClick={onRefresh}
+            className="p-3 border-2 border-black bg-white font-bold hover:bg-black hover:text-white transition-colors uppercase text-sm flex items-center gap-2"
+        >
+          <PixelIcon.Refresh />
+          {loading ? "обновление..." : "обновить данные"}
+        </motion.button>
+      </motion.div>
 
       {error && (
-        <Card className="border-destructive bg-destructive/5">
-          <CardContent className="p-4 text-destructive text-sm">{error}</CardContent>
-        </Card>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="p-4 border-4 border-black bg-red-100 font-bold text-red-800"
+        >
+          ошибка при загрузке данных: {error}
+        </motion.div>
       )}
 
-      {loading && orders.length === 0 ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <div className="h-24 bg-slate-50 rounded-xl" />
-            </Card>
-          ))}
-        </div>
-      ) : orders.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Package className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-          <h3 className="text-lg font-bold">Заказов пока нет</h3>
-          <p className="text-slate-500">Как только вы оформите первый заказ, он появится здесь</p>
-        </Card>
-      ) : (
-        <motion.div
-          layout
-          className="grid gap-4"
+      {/* отображение при отсутствии заказов */}
+      {orders.length === 0 && !loading ? (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="border-4 border-black p-20 text-center bg-white"
         >
+          <div className="h-16 w-16 mx-auto mb-4 opacity-20"><PixelIcon.Package /></div>
+          <h3 className="text-xl font-bold uppercase">Заказов пока нет</h3>
+        </motion.div>
+      ) : (
+        <div className="space-y-6">
           <AnimatePresence mode="popLayout">
-            {orders.map((order, index) => (
-              <motion.div
+            {orders.map((order, idx) => (
+              <motion.div 
                 key={order.number}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: idx * 0.1 }}
+                className="border-4 border-black bg-white overflow-hidden"
               >
-                <Card className="overflow-hidden border-none shadow-lg bg-card/50 backdrop-blur-sm group hover:shadow-2xl transition-all duration-500">
-                  <CardHeader className="bg-muted/30 py-6 border-b">
-                    <div className="flex flex-wrap items-center justify-between gap-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-background border-2 border-primary/20 flex items-center justify-center font-black text-lg shadow-sm group-hover:scale-110 transition-transform">
-                          #{order.number}
-                        </div>
-                        <div className="space-y-1">
-                          <CardTitle className="text-xl font-bold">Заказ №{order.number}</CardTitle>
-                          <CardDescription className="font-medium">от {new Date(order.created_at).toLocaleDateString()}</CardDescription>
-                        </div>
+                {/* шапка заказа с номером и статусом */}
+                <div className="bg-[#7FFF00] p-4 border-b-4 border-black flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center gap-4">
+                      <span className="text-2xl font-black">№{order.number}</span>
+                      <div className="flex items-center gap-2 text-xs font-bold uppercase">
+                          <PixelIcon.Clock />
+                          {new Date(order.created_at).toLocaleDateString()}
                       </div>
-                      <div className="flex items-center gap-6">
-                        {/* если админ — даем менять статус прямо в списке */}
-                        {isAdmin ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Статус</span>
-                            <select
-                              className="text-sm border-none rounded-lg px-3 py-2 bg-background shadow-sm focus:ring-2 ring-primary/20 transition-all font-bold"
-                              value={order.status}
-                              onChange={(e) => onUpdateStatus(order.number, e.target.value)}
-                            >
-                              {Object.keys(STATUS_MAP).map((s) => (
-                                <option key={s} value={s}>{STATUS_MAP[s]}</option>
-                              ))}
-                            </select>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end gap-1">
-                             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Статус</span>
-                             <Badge className="bg-primary/20 text-primary border-none shadow-sm font-bold">
-                                {displayStatus(order.status)}
-                             </Badge>
-                          </div>
-                        )}
-                        <div className="text-right border-l pl-6">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Итоговая сумма</p>
-                          <p className="font-black text-2xl tracking-tighter text-primary">{formatMoney(Number(order.total))} <span className="text-sm font-normal opacity-70">₽</span></p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader className="bg-white">
-                        <TableRow>
-                          <TableHead className="w-[100px]">Артикул</TableHead>
-                          <TableHead>Кол-во</TableHead>
-                          <TableHead className="text-right">Цена за ед.</TableHead>
-                          <TableHead className="text-right">Итого</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {order.items.map((item) => (
-                          <TableRow key={item.article}>
-                            <TableCell className="font-medium">{item.article}</TableCell>
-                            <TableCell>{item.quantity} шт.</TableCell>
-                            <TableCell className="text-right">{formatMoney(Number(item.unit_price))} ₽</TableCell>
-                            <TableCell className="text-right font-bold">{formatMoney(Number(item.total))} ₽</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    {/* доп инфа о доставке и клиенте */}
-                    <div className="p-4 bg-slate-50/30 border-t flex flex-wrap gap-6 text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-slate-400" />
-                        <span className="text-slate-500">Клиент:</span>
-                        <span className="font-medium">{order.user_full_name} ({order.user_login})</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
-                        <span className="text-slate-500">Доставка:</span>
-                        <span className="font-medium">{new Date(order.delivery_date).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-slate-200 text-slate-700">Код: {order.pickup_code}</Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                  <div className="flex items-center gap-4">
+                      <span className="px-3 py-1 border-2 border-black bg-white font-black uppercase text-xs">
+                          {STATUS_MAP[order.status] || order.status}
+                      </span>
+                      <span className="text-2xl font-black">{order.total} ₽</span>
+                  </div>
+                </div>
+
+                {/* детализация состава заказа */}
+                <div className="p-0 overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[500px]">
+                    <thead>
+                      <tr className="border-b-2 border-black bg-gray-50 font-bold uppercase text-xs">
+                        <th className="p-4">Артикул</th>
+                        <th className="p-4">Количество</th>
+                        <th className="p-4 text-right">Цена</th>
+                        <th className="p-4 text-right">Итого</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.items.map((item) => (
+                        <tr key={item.article} className="border-b border-black hover:bg-gray-50 transition-colors">
+                          <td className="p-4 font-bold">{item.article}</td>
+                          <td className="p-4">{item.quantity} шт.</td>
+                          <td className="p-4 text-right">{item.unit_price} ₽</td>
+                          <td className="p-4 text-right font-black">{item.total} ₽</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* дополнительная информация о заказе */}
+                <div className="p-4 bg-gray-50 flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-8 text-[10px] sm:text-xs font-bold uppercase border-t border-black">
+                  <div className="flex items-center gap-2">
+                    <PixelIcon.User />
+                    <span>Клиент: {order.user_full_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <PixelIcon.Clock />
+                    <span>Доставка: {new Date(order.delivery_date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <PixelIcon.Tag />
+                    <span>Код: {order.pickup_code}</span>
+                  </div>
+                </div>
               </motion.div>
             ))}
           </AnimatePresence>
-        </motion.div>
+        </div>
       )}
     </div>
   );

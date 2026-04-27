@@ -1,5 +1,6 @@
 import type { ApiOrder, ApiProduct, AuthSession, CatalogFilters, Role } from "@shared/types";
 
+// базовый url для запросов к апи
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 type RegisterPayload = {
@@ -23,6 +24,7 @@ type UpdateOrderPayload = {
   delivery_date?: string;
 };
 
+// универсальная функция для выполнения http-запросов
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -33,17 +35,19 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
     },
   });
 
+  // обработка ошибок ответа сервера
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`;
     try {
       const body = await response.json();
       detail = body.detail ?? detail;
     } catch {
-      // ignore
+      // игнорируем ошибки парсинга тела при ошибке
     }
     throw new Error(detail);
   }
 
+  // возврат пустого значения для 204 No Content
   if (response.status === 204) {
     return undefined as T;
   }
@@ -51,6 +55,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return response.json() as Promise<T>;
 }
 
+// преобразование данных авторизации в формат сессии
 export function toSession(payload: {
   access_token: string;
   login: string;
@@ -65,6 +70,7 @@ export function toSession(payload: {
   };
 }
 
+// авторизация пользователя
 export async function apiLogin(payload: LoginPayload): Promise<AuthSession> {
   const data = await request<{
     access_token: string;
@@ -75,6 +81,7 @@ export async function apiLogin(payload: LoginPayload): Promise<AuthSession> {
   return toSession(data);
 }
 
+// регистрация нового пользователя
 export async function apiRegister(payload: RegisterPayload): Promise<AuthSession> {
   const data = await request<{
     access_token: string;
@@ -85,10 +92,12 @@ export async function apiRegister(payload: RegisterPayload): Promise<AuthSession
   return toSession(data);
 }
 
+// получение данных текущего пользователя
 export async function apiMe(token: string) {
   return request<{ login: string; full_name: string; role: Role }>("/auth/me", {}, token);
 }
 
+// получение списка товаров с фильтрацией
 export async function apiCatalog(filters: CatalogFilters): Promise<ApiProduct[]> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
@@ -100,22 +109,27 @@ export async function apiCatalog(filters: CatalogFilters): Promise<ApiProduct[]>
   return request<ApiProduct[]>(`/catalog?${params.toString()}`);
 }
 
+// получение списка всех доступных производителей
 export async function apiManufacturers(): Promise<string[]> {
   return request<string[]>("/manufacturers");
 }
 
+// получение детальной информации о конкретном товаре
 export async function apiProduct(article: string): Promise<ApiProduct> {
   return request<ApiProduct>(`/products/${encodeURIComponent(article)}`);
 }
 
+// получение списка заказов текущего пользователя
 export async function apiOrders(token: string): Promise<ApiOrder[]> {
   return request<ApiOrder[]>("/orders/me", {}, token);
 }
 
+// получение полного списка заказов (для администраторов)
 export async function apiAllOrders(token: string): Promise<ApiOrder[]> {
   return request<ApiOrder[]>("/orders", {}, token);
 }
 
+// создание нового заказа
 export async function apiCreateOrder(
   token: string,
   payload: CreateOrderPayload,
@@ -123,6 +137,7 @@ export async function apiCreateOrder(
   return request<ApiOrder>("/orders", { method: "POST", body: JSON.stringify(payload) }, token);
 }
 
+// обновление статуса или параметров существующего заказа
 export async function apiUpdateOrder(
   token: string,
   number: number,

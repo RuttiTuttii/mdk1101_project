@@ -1,5 +1,7 @@
+// доступные ключи для сортировки товаров
 export type SortKey = "name" | "supplier" | "price" | "price_desc";
 
+// модель данных товара во внутреннем формате приложения
 export type Product = {
   article: string;
   name: string;
@@ -14,6 +16,7 @@ export type Product = {
   imagePath?: string | null;
 };
 
+// структура фильтров для каталога продукции
 export type CatalogFilters = {
   search: string;
   manufacturer: string;
@@ -23,8 +26,10 @@ export type CatalogFilters = {
   sortBy: SortKey;
 };
 
+// перечень ролей пользователей в системе
 export type Role = "admin" | "manager" | "client";
 
+// данные текущей авторизованной сессии
 export type AuthSession = {
   token: string;
   login: string;
@@ -32,6 +37,7 @@ export type AuthSession = {
   role: Role;
 };
 
+// модель данных товара, возвращаемая сервером апи
 export type ApiProduct = {
   article: string;
   name: string;
@@ -49,6 +55,7 @@ export type ApiProduct = {
   in_stock: boolean;
 };
 
+// модель позиции в составе заказа
 export type ApiOrderItem = {
   article: string;
   quantity: number;
@@ -56,6 +63,7 @@ export type ApiOrderItem = {
   total: string | number;
 };
 
+// модель заказа, возвращаемая сервером апи
 export type ApiOrder = {
   number: number;
   user_login: string;
@@ -68,6 +76,7 @@ export type ApiOrder = {
   items: ApiOrderItem[];
 };
 
+// перечисление возможных маршрутов навигации фронтенда
 export type Route =
   | { name: "catalog" }
   | { name: "login" }

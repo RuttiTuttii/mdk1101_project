@@ -1,9 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @source "../../shared/src";
-
-@custom-variant dark (&:is(.dark *));
 
 @theme {
   --font-sans: "Times New Roman", Times, serif;
@@ -14,10 +11,12 @@
   --color-card: #FFFFFF;
   --color-card-foreground: #000000;
   
-  --color-primary: #00FA9A; /* Accent color from spec */
+  /* основной акцентный цвет */
+  --color-primary: #00FA9A; 
   --color-primary-foreground: #000000;
   
-  --color-secondary: #7FFF00; /* Additional background from spec */
+  /* дополнительный цвет фона */
+  --color-secondary: #7FFF00; 
   --color-secondary-foreground: #000000;
   
   --color-muted: #F3F4F6;
@@ -28,47 +27,51 @@
   
   --color-destructive: #FF0000;
   
-  --color-border: #E5E7EB;
+  --color-border: #000000;
   --color-input: #FFFFFF;
   --color-ring: #00FA9A;
 
-  /* Spec specific colors */
+  /* определение специфических цветов по тз */
   --color-spec-lime: #7FFF00;
   --color-spec-spring: #00FA9A;
   --color-spec-sea: #2E8B57;
   
-  --radius-lg: 0px; /* Make it look more classic/standard */
+  /* настройка отсутствия скруглений */
+  --radius-lg: 0px;
   --radius-md: 0px;
   --radius-sm: 0px;
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-black;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#F8FAFC] text-black;
     font-family: "Times New Roman", Times, serif;
   }
 }
 
-/* Custom premium classes */
-.glass-panel {
-  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
-}
-
-.premium-gradient {
-  background: linear-gradient(135deg, oklch(0.648 0.2 160) 0%, oklch(0.5 0.15 170) 100%);
-}
-
+/* вспомогательные утилитарные классы */
 .price-old {
-  @apply text-muted-foreground line-through text-sm;
+  @apply text-red-600 line-through text-sm opacity-60;
 }
 
 .price-new {
-  @apply text-primary font-bold;
+  @apply text-black font-black;
 }
 
 .discount-badge {
-  @apply bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-semibold;
+  @apply bg-red-600 text-white px-2 py-1 font-bold text-xs;
+}
+
+/* кастомные стили фокуса элементов ввода */
+input:focus, select:focus {
+    @apply bg-[#E0F2FE] outline-none;
+}
+
+/* глобальная настройка отображения иконок в квадратном стиле */
+svg.lucide, svg {
+  stroke-linecap: square !important;
+  stroke-linejoin: miter !important;
 }

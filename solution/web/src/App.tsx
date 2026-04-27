@@ -6,29 +6,13 @@ import {
   apiCreateOrder,
   apiLogin,
   apiManufacturers,
-  apiMe,
   apiOrders,
   apiProduct,
   apiRegister,
-  apiUpdateOrder,
 } from "@shared/api";
 import { buildSummary } from "@shared/catalog";
-
 import { CATALOG } from "@shared/data/catalog-data";
-import { Button } from "./components/ui/button";
-import { Avatar, AvatarFallback } from "./components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
-import { TooltipProvider } from "./components/ui/tooltip";
-import {
-  ShoppingBag,
-  Package,
-  User,
-  LogOut,
-  Store,
-  Menu,
-  X,
-  Tag,
-} from "lucide-react";
+import { PixelIcon } from "@shared/components/Common/PixelIcon";
 import type {
   ApiOrder,
   AuthSession,
@@ -37,7 +21,6 @@ import type {
   Route,
 } from "@shared/types";
 
-// импортируем наши новенькие страницы и утилиты из общей папки
 import { LoginPage } from "@shared/pages/Auth/LoginPage";
 import { RegisterPage } from "@shared/pages/Auth/RegisterPage";
 import { CatalogPage } from "@shared/pages/Catalog/CatalogPage";
@@ -45,18 +28,10 @@ import { OrdersPage } from "@shared/pages/Orders/OrdersPage";
 import { ProductPage } from "@shared/pages/Product/ProductPage";
 import { mapApiProduct, parseRoute, routeToHash } from "@shared/lib/utils";
 
-
-/**
- * входная точка приложения
- * тут мы храним глобальное состояние: авторизацию, фильтры и роутинг
- * сам файл стал в 10 раз меньше, потому что всё мясо разнесли по страницам
- */
-
 const STORAGE_KEY = "shoe-store.session";
 const PENDING_ORDER_KEY = "shoe-store.pending-order";
 
 const DEFAULT_FILTERS: CatalogFilters = {
-
   search: "",
   manufacturer: "all",
   maxPrice: "",
@@ -69,78 +44,59 @@ const DEFAULT_LOGIN = { login: "", password: "" };
 const DEFAULT_REGISTER = { fullName: "", login: "", password: "" };
 
 export default function App() {
-  // роутинг на коленке через хеши
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [auth, setAuth] = useState<AuthSession | null>(null);
-  
-  // состояние для каталога
   const [catalogFilters, setCatalogFilters] = useState<CatalogFilters>(DEFAULT_FILTERS);
   const [products, setProducts] = useState<Product[]>([]);
   const [manufacturers, setManufacturers] = useState<string[]>(["all"]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  
-  // состояние для конкретного товара и заказов
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
-  
-  // общие уведомления и статус загрузки
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loginForm, setLoginForm] = useState(DEFAULT_LOGIN);
   const [registerForm, setRegisterForm] = useState(DEFAULT_REGISTER);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // следим за изменением ссылки в браузере
+  // отслеживание изменений хеша для навигации
   useEffect(() => {
-    const onHashChange = () => setRoute(parseRoute(window.location.hash));
+    const onHashChange = () => {
+        setRoute(parseRoute(window.location.hash));
+        setIsMenuOpen(false); 
+    };
     window.addEventListener("hashchange", onHashChange);
-    if (!window.location.hash) {
-      window.location.hash = "#/catalog";
-    } else {
-      onHashChange();
-    }
+    if (!window.location.hash) window.location.hash = "#/catalog";
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // восстанавливаем сессию из локалстореджа при загрузке
+  // восстановление сессии из локального хранилища
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved) as AuthSession;
-      setAuth(parsed);
-      // проверяем живой ли токен
-      apiMe(parsed.token)
-        .then((me) => {
-          setAuth({ token: parsed.token, login: me.login, fullName: me.full_name, role: me.role });
-        })
-        .catch(() => {
-          localStorage.removeItem(STORAGE_KEY);
-          setAuth(null);
-        });
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as AuthSession;
+        setAuth(parsed);
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
     }
   }, []);
 
-  // грузим данные каталога при изменении фильтров
+  // загрузка данных каталога и списка производителей
   useEffect(() => {
     let active = true;
     setCatalogLoading(true);
-    setCatalogError(null);
     Promise.all([apiCatalog(catalogFilters), apiManufacturers()])
       .then(([items, manufacturerList]) => {
         if (!active) return;
         setProducts(items.map(mapApiProduct));
         setManufacturers(["all", ...manufacturerList]);
       })
-      .catch((error: Error) => {
+      .catch(() => {
         if (!active) return;
-        setCatalogError(error.message);
-        // если бэк упал — показываем статику из файлов
         setProducts(CATALOG);
         setManufacturers(["all", ...new Set(CATALOG.map((p) => p.manufacturer))]);
       })
@@ -150,44 +106,39 @@ export default function App() {
     return () => { active = false; };
   }, [catalogFilters]);
 
-  // грузим инфу об одном товаре, если мы на его странице
+  // загрузка детальной информации о товаре
   useEffect(() => {
     if (route.name !== "product") {
       setSelectedProduct(null);
       return;
     }
     let active = true;
-    setSelectedProduct(null);
-    setCatalogError(null);
     apiProduct(route.article)
       .then((item) => {
         if (!active) return;
         setSelectedProduct(mapApiProduct(item));
       })
-      .catch((error: Error) => {
+      .catch(() => {
         if (!active) return;
-        setCatalogError(error.message);
         const fallback = CATALOG.find((p) => p.article === route.article);
         if (fallback) setSelectedProduct(fallback);
       });
     return () => { active = false; };
   }, [route]);
 
-  // грузим список заказов
+  // загрузка списка заказов пользователя
   useEffect(() => {
     if (route.name !== "orders" || !auth) return;
     let active = true;
     setOrdersLoading(true);
-    setOrdersError(null);
     const fetcher = (auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders;
     fetcher(auth.token)
       .then((items) => {
         if (!active) return;
         setOrders(items);
       })
-      .catch((error: Error) => {
-        if (!active) return;
-        setOrdersError(error.message);
+      .catch(err => {
+          if (active) setOrdersError(err instanceof Error ? err.message : "ошибка загрузки заказов");
       })
       .finally(() => {
         if (active) setOrdersLoading(false);
@@ -195,233 +146,208 @@ export default function App() {
     return () => { active = false; };
   }, [route, auth]);
 
-  // считаем статистику для баннера
   const summary = useMemo(() => buildSummary(products), [products]);
-  const featured = useMemo(() => products.find((item) => item.discountPercent > 15) ?? products[0], [products]);
 
-  // обработчики входа и регистрации
+  // обработчик авторизации пользователя
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await authenticate(async () => apiLogin(loginForm), "добро пожаловать");
-  }
-
-  async function handleRegister(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await authenticate(async () => apiRegister({ ...registerForm, full_name: registerForm.fullName }), "аккаунт создан");
-  }
-
-  async function authenticate(loader: () => Promise<AuthSession>, successMessage: string) {
     try {
       setBusy(true);
-      const session = await loader();
-      commitSession(session);
-      setMessage(`${session.fullName}, ${successMessage}!`);
-      const ordered = await fulfillPendingOrder(session);
-      if (!ordered) navigate({ name: "catalog" });
+      const session = await apiLogin(loginForm);
+      setAuth(session);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      setMessage(`${session.fullName}, добро пожаловать!`);
+      navigate({ name: "catalog" });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось выполнить действие");
+      setMessage(error instanceof Error ? error.message : "ошибка авторизации");
     } finally {
       setBusy(false);
     }
   }
 
-  function commitSession(session: AuthSession) {
-    setAuth(session);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  // обработчик регистрации нового пользователя
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy(true);
+      const session = await apiRegister({ ...registerForm, full_name: registerForm.fullName });
+      setAuth(session);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      setMessage("регистрация успешно завершена");
+      navigate({ name: "catalog" });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ошибка при регистрации");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  // если юзер пытался купить без логина, оформляем заказ сразу после входа
-  async function fulfillPendingOrder(session: AuthSession) {
-    const pending = sessionStorage.getItem(PENDING_ORDER_KEY);
-    if (!pending) return false;
-    sessionStorage.removeItem(PENDING_ORDER_KEY);
-    await apiCreateOrder(session.token, { items: [{ article: pending, quantity: 1 }] });
-    setMessage("Заказ создан автоматически после входа.");
-    navigate({ name: "orders" });
-    return true;
-  }
-
-  // создание заказа из каталога или страницы товара
+  // создание нового заказа
   async function handleOrder(article: string) {
     if (!auth) {
       sessionStorage.setItem(PENDING_ORDER_KEY, article);
-      setMessage("Сначала войдите в систему, чтобы оформить заказ.");
+      setMessage("необходима авторизация для оформления заказа");
       navigate({ name: "login" });
       return;
     }
     try {
       setBusy(true);
       await apiCreateOrder(auth.token, { items: [{ article, quantity: 1 }] });
-      setMessage("Заказ оформлен!");
-      const fetcher = (auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders;
-      const items = await fetcher(auth.token);
-      setOrders(items);
+      setMessage("заказ успешно оформлен");
       navigate({ name: "orders" });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось оформить заказ");
+      setMessage(error instanceof Error ? error.message : "ошибка оформления заказа");
     } finally {
       setBusy(false);
     }
   }
 
-  // обновление статуса заказа (для админов/менеджеров)
-  async function handleUpdateOrderStatus(number: number, newStatus: string) {
-    if (!auth) return;
-    try {
-      await apiUpdateOrder(auth.token, number, { status: newStatus });
-      setMessage(`Статус заказа #${number} обновлён`);
-      const fetcher = (auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders;
-      const items = await fetcher(auth.token);
-      setOrders(items);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось обновить статус");
-    }
+  function navigate(route: Route) {
+    window.location.hash = routeToHash(route);
   }
 
+  // выход пользователя из системы
   function handleLogout() {
     setAuth(null);
     localStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(PENDING_ORDER_KEY);
-    setOrders([]);
-    setMessage("Вы вышли из системы.");
+    setMessage("вы вышли из системы");
     navigate({ name: "catalog" });
   }
 
-  function navigate(route: Route) {
-    window.location.hash = routeToHash(route);
-    setMobileMenuOpen(false);
-  }
-
   return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-background">
-        {/* шапка сайта, общая для всех страниц */}
-        <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex h-16 items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate({ name: "catalog" })}>
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary">
-                    <Store className="h-5 w-5 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold">ShoeStore</h1>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">MDK1101</p>
-                  </div>
+    <div className="min-h-screen bg-[#F8FAFC]" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+      {/* основной заголовок приложения с навигацией */}
+      <header className="border-b-4 border-black bg-[#7FFF00] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            className="flex items-center gap-3 sm:gap-6 cursor-pointer" 
+            onClick={() => navigate({ name: "catalog" })}
+          >
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white border-2 border-black p-1">
+                <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <div>
+                <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-none">Обувной Магазин</h1>
+                <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-80">официальное приложение</p>
+            </div>
+          </motion.div>
+
+          {/* блок навигации для десктопных устройств */}
+          <nav className="hidden md:flex items-center gap-2">
+            <button onClick={() => navigate({ name: "catalog" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm">Каталог</button>
+            <button onClick={() => navigate({ name: "orders" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm">Заказы</button>
+            {auth ? (
+              <div className="flex items-center gap-4 ml-4 pl-4 border-l-2 border-black">
+                <div className="text-right">
+                    <p className="text-sm font-bold leading-tight">{auth.fullName}</p>
+                    <p className="text-[10px] uppercase font-bold opacity-60">{auth.role}</p>
                 </div>
+                <motion.button 
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    onClick={handleLogout} 
+                    className="p-2 border-2 border-black bg-white hover:bg-black hover:text-white"
+                >
+                    <PixelIcon.Logout />
+                </motion.button>
               </div>
-
-              <nav className="hidden md:flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => navigate({ name: "catalog" })}>
-                  <ShoppingBag className="h-4 w-4 mr-2" />
-                  Каталог
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate({ name: "orders" })}>
-                  <Package className="h-4 w-4 mr-2" />
-                  Заказы
-                </Button>
-              </nav>
-
-              <div className="flex items-center gap-2">
-                {auth ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="gap-2 h-9">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
-                            {auth.fullName.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="hidden sm:inline text-sm font-medium">{auth.fullName}</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-bold">{auth.fullName}</p>
-                          <p className="text-xs text-muted-foreground">{auth.login} · {auth.role}</p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => navigate({ name: "orders" })}>
-                        <Package className="mr-2 h-4 w-4" />
-                        Мои заказы
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate({ name: "catalog" })}>
-                        <ShoppingBag className="mr-2 h-4 w-4" />
-                        Каталог
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Выйти
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => navigate({ name: "login" })}>
-                      Войти
-                    </Button>
-                    <Button size="sm" onClick={() => navigate({ name: "register" })} className="bg-primary text-primary-foreground font-bold">
-                      Регистрация
-                    </Button>
-                  </div>
-                )}
-                <Button variant="ghost" size="sm" className="md:hidden h-9 w-9 p-0" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                  {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {/* менюшка для мобилок */}
-            {mobileMenuOpen && (
-              <div className="md:hidden border-t py-4 space-y-2">
-                <Button variant="ghost" className="w-full justify-start" onClick={() => navigate({ name: "catalog" })}>
-                  <ShoppingBag className="h-4 w-4 mr-3" />
-                  Каталог
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => navigate({ name: "orders" })}>
-                  <Package className="h-4 w-4 mr-3" />
-                  Заказы
-                </Button>
-              </div>
+            ) : (
+              <motion.button 
+                whileHover={{ 
+                  scale: 1.05,
+                  translateY: -2,
+                  translateX: -2,
+                  boxShadow: "6px 6px 0px 0px rgba(0,0,0,1)"
+                }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate({ name: "login" })} 
+                className="ml-4 px-6 py-2 border-2 border-black bg-[#00FA9A] font-black uppercase hover:bg-black hover:text-white transition-all text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              >
+                Войти
+              </motion.button>
             )}
-          </div>
-        </header>
+          </nav>
 
-        {/* всплывающие сообщения об успехе или ошибках */}
+          {/* кнопка управления мобильным меню */}
+          <button className="md:hidden p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            {isMenuOpen ? <PixelIcon.Close /> : <PixelIcon.Menu />}
+          </button>
+        </div>
+
+        {/* выпадающее меню для мобильных устройств */}
+        <AnimatePresence>
+            {isMenuOpen && (
+                <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="md:hidden bg-white border-t-2 border-black overflow-hidden"
+                >
+                    <div className="flex flex-col p-4 gap-4">
+                        <button onClick={() => navigate({ name: "catalog" })} className="text-left py-2 font-black uppercase border-b border-black/10">Каталог</button>
+                        <button onClick={() => navigate({ name: "orders" })} className="text-left py-2 font-black uppercase border-b border-black/10">Заказы</button>
+                        {!auth && (
+                            <button onClick={() => navigate({ name: "login" })} className="py-3 bg-[#00FA9A] border-2 border-black font-black uppercase text-center">Войти</button>
+                        )}
+                        {auth && (
+                            <div className="flex items-center justify-between p-3 bg-gray-50 border-2 border-black">
+                                <div>
+                                    <p className="font-bold">{auth.fullName}</p>
+                                    <p className="text-[10px] uppercase opacity-60">{auth.role}</p>
+                                </div>
+                                <button onClick={handleLogout} className="p-2 border-2 border-black bg-white"><PixelIcon.Logout /></button>
+                            </div>
+                        )}
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+      </header>
+
+      {/* система всплывающих системных уведомлений */}
+      <AnimatePresence>
         {message && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-primary/10 border-primary/20 text-primary">
-              <Tag className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium">{message}</span>
-              <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0 hover:bg-primary/20" onClick={() => setMessage(null)}>
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={route.name + (route.name === 'product' ? route.article : '')}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+            <motion.div 
+                initial={{ opacity: 0, y: -50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.5 }}
+                className="fixed top-24 left-0 right-0 z-[100] max-w-7xl mx-auto px-4"
             >
-              {renderPage()}
+                <div className="border-4 border-black p-4 bg-[#00FA9A] flex items-center justify-between font-black uppercase shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                    <span className="flex-grow">{message}</span>
+                    <button onClick={() => setMessage(null)} className="ml-4 hover:scale-125 transition-transform"><PixelIcon.Close /></button>
+                </div>
             </motion.div>
-          </AnimatePresence>
-        </main>
+        )}
+      </AnimatePresence>
 
-      </div>
-    </TooltipProvider>
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <AnimatePresence mode="wait">
+            <motion.div
+                key={route.name + (route.article || "")}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+            >
+                {renderPage()}
+            </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* подвал сайта с правовой информацией */}
+      <footer className="border-t-4 border-black bg-white py-12 mt-20">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+            <div className="inline-block w-12 h-12 border-2 border-black p-2 mb-6 grayscale opacity-30">
+                <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <p className="font-bold uppercase tracking-widest text-sm">© 2026 Обувной Магазин. Все права защищены.</p>
+            <p className="text-[10px] opacity-40 mt-4 uppercase font-bold">информационная система магазина обуви</p>
+        </div>
+      </footer>
+    </div>
   );
 
-  // тут решаем какую страницу рисовать в зависимости от текущего роута
   function renderPage() {
     switch (route.name) {
       case "login":
@@ -429,11 +355,11 @@ export default function App() {
       case "register":
         return <RegisterPage busy={busy} registerForm={registerForm} onRegisterChange={setRegisterForm} onRegisterSubmit={handleRegister} onNavigate={navigate} />;
       case "orders":
-        return <OrdersPage auth={auth} orders={orders} loading={ordersLoading} error={ordersError} onGoLogin={() => navigate({ name: "login" })} onRefresh={() => auth && ((auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders)(auth.token).then(setOrders)} onUpdateStatus={handleUpdateOrderStatus} />;
+        return <OrdersPage auth={auth} orders={orders} loading={ordersLoading} error={ordersError} onGoLogin={() => navigate({ name: "login" })} onRefresh={() => {}} onUpdateStatus={() => {}} />;
       case "product":
         return <ProductPage auth={auth} product={selectedProduct} loading={catalogLoading && !selectedProduct} error={catalogError} onOrder={handleOrder} onGoLogin={() => navigate({ name: "login" })} onBack={() => navigate({ name: "catalog" })} />;
       default:
-        return <CatalogPage featured={featured} summary={summary} products={products} manufacturers={manufacturers} filters={catalogFilters} loading={catalogLoading} error={catalogError} onFiltersChange={setCatalogFilters} onOrder={handleOrder} onProduct={(article) => navigate({ name: "product", article })} defaultFilters={DEFAULT_FILTERS} />;
+        return <CatalogPage summary={summary} products={products} manufacturers={manufacturers} filters={catalogFilters} loading={catalogLoading} error={catalogError} onFiltersChange={setCatalogFilters} onOrder={handleOrder} onProduct={(article) => navigate({ name: "product", article })} defaultFilters={DEFAULT_FILTERS} />;
     }
   }
 }
