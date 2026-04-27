@@ -1,0 +1,19 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "shared/src/styles.css",
+    "baseColor": "zinc",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "shared/src/components/ui",
+    "utils": "shared/src/lib/utils"
+  },
+  "registries": {
+    "@acme": "https://acme.com/r/{name}.json"
+  }
+}

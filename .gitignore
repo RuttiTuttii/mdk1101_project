@@ -1,0 +1,65 @@
+# ==================== Frontend ====================
+node_modules/
+dist/
+build/
+.vite/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ==================== Tauri / Rust ====================
+src-tauri/target/
+src-tauri/gen/
+src-tauri/migrations/
+src-tauri/.cargo/
+target/
+src-tauri/tauri.conf.json.bak
+*.tauri
+
+# ==================== Python / Backend ====================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== Environment & Secrets ====================
+.env
+.env.local
+.env.*.local
+*.local
+
+# ==================== Logs & Debug ====================
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+logs/
+
+# ==================== IDE & Editor ====================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ==================== Package managers ====================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ==================== Misc ====================
+scratch/
+archive.zip
+archive.py

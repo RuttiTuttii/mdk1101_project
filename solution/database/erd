@@ -1,0 +1,47 @@
+digraph ERD {
+	bgcolor=white fontname="Times New Roman" rankdir=TB
+	node [fontname="Times New Roman" fontsize=11 shape=record]
+	edge [fontname="Times New Roman" fontsize=10]
+	roles [label="{roles|id : INTEGER PK
+name : VARCHAR(50) UK}"]
+	users [label="{users|id : INTEGER PK
+login : VARCHAR(255) UK
+full_name : VARCHAR(255)
+role_id : INTEGER FK
+password_hash : VARCHAR(255)}"]
+	categories [label="{categories|id : INTEGER PK
+name : VARCHAR(255) UK}"]
+	manufacturers [label="{manufacturers|id : INTEGER PK
+name : VARCHAR(255) UK}"]
+	suppliers [label="{suppliers|id : INTEGER PK
+name : VARCHAR(255) UK}"]
+	products [label="{products|article : VARCHAR(50) PK
+name : VARCHAR(255)
+description : TEXT
+manufacturer_id : INTEGER FK
+supplier_id : INTEGER FK
+category_id : INTEGER FK
+unit : VARCHAR(50)
+price : NUMERIC(10,2)
+discount_percent : INTEGER
+stock_count : INTEGER
+image_path : VARCHAR(500)}"]
+	orders [label="{orders|id : INTEGER PK
+user_id : INTEGER FK
+created_at : DATE
+delivery_date : DATE
+pickup_code : INTEGER
+status : VARCHAR(50)}"]
+	order_items [label="{order_items|id : INTEGER PK
+order_id : INTEGER FK
+product_article : VARCHAR(50) FK
+quantity : INTEGER
+unit_price : NUMERIC(10,2)}"]
+	roles -> users [label="1:N" arrowhead=crow]
+	users -> orders [label="1:N" arrowhead=crow]
+	categories -> products [label="1:N" arrowhead=crow]
+	manufacturers -> products [label="1:N" arrowhead=crow]
+	suppliers -> products [label="1:N" arrowhead=crow]
+	products -> order_items [label="1:N" arrowhead=crow]
+	orders -> order_items [label="1:N" arrowhead=crow arrowtail=none]
+}

@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: #FFFFFF;
+  --color-foreground: #1a1a1a;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1a1a1a;
+  --color-primary: #00FA9A;
+  --color-primary-foreground: #0a2e1a;
+  --color-secondary: #7FFF00;
+  --color-secondary-foreground: #1a3a0a;
+  --color-muted: #f5f5f5;
+  --color-muted-foreground: #666666;
+  --color-accent: #00FA9A;
+  --color-accent-foreground: #0a2e1a;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e0e0e0;
+  --color-input: #e0e0e0;
+  --color-ring: #00FA9A;
+  --color-discount: #2E8B57;
+  --color-discount-foreground: #ffffff;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --font-serif: "Times New Roman", "Times", Georgia, serif;
+  --font-sans: "Times New Roman", "Times", Georgia, serif;
+}
+
+* {
+  font-family: "Times New Roman", "Times", Georgia, serif !important;
+}
+
+body {
+  margin: 0;
+  background-color: #FFFFFF;
+  color: #1a1a1a;
+  font-family: "Times New Roman", "Times", Georgia, serif;
+}
+
+.price-old {
+  text-decoration: line-through;
+  color: #cc0000;
+}
+
+/* Безрамочное окно со скруглёнными углами */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+button, a, input, select, textarea {
+  -webkit-app-region: no-drag;
+}
+
+/* Анимация появления */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 300ms ease both;
+}
