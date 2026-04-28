@@ -11,6 +11,10 @@ export default defineConfig(async () => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared/src"),
+      "react": path.resolve(__dirname, "./node_modules/react"),
+      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
+      "react/jsx-runtime": path.resolve(__dirname, "./node_modules/react/jsx-runtime"),
+      "framer-motion": path.resolve(__dirname, "./node_modules/framer-motion"),
       "clsx": path.resolve(__dirname, "./node_modules/clsx"),
       "tailwind-merge": path.resolve(__dirname, "./node_modules/tailwind-merge"),
     },
