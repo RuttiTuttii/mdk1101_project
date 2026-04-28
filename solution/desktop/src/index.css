@@ -1,73 +1,128 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+@source "../../shared/src";
 
-@theme inline {
+@theme {
+  --font-sans: "Times New Roman", Times, serif;
+
   --color-background: #FFFFFF;
-  --color-foreground: #1a1a1a;
+  --color-foreground: #000000;
+
   --color-card: #FFFFFF;
-  --color-card-foreground: #1a1a1a;
+  --color-card-foreground: #000000;
+
+  /* основной акцентный цвет */
   --color-primary: #00FA9A;
-  --color-primary-foreground: #0a2e1a;
+  --color-primary-foreground: #000000;
+
+  /* дополнительный цвет фона */
   --color-secondary: #7FFF00;
-  --color-secondary-foreground: #1a3a0a;
-  --color-muted: #f5f5f5;
-  --color-muted-foreground: #666666;
+  --color-secondary-foreground: #000000;
+
+  --color-muted: #F3F4F6;
+  --color-muted-foreground: #6B7280;
+
   --color-accent: #00FA9A;
-  --color-accent-foreground: #0a2e1a;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #e0e0e0;
-  --color-input: #e0e0e0;
+  --color-accent-foreground: #000000;
+
+  --color-destructive: #FF0000;
+
+  --color-border: #000000;
+  --color-input: #FFFFFF;
   --color-ring: #00FA9A;
-  --color-discount: #2E8B57;
-  --color-discount-foreground: #ffffff;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --font-serif: "Times New Roman", "Times", Georgia, serif;
-  --font-sans: "Times New Roman", "Times", Georgia, serif;
+
+  /* определение специфических цветов по тз */
+  --color-spec-lime: #7FFF00;
+  --color-spec-spring: #00FA9A;
+  --color-spec-sea: #2E8B57;
+
+  /* настройка отсутствия скруглений */
+  --radius-lg: 0px;
+  --radius-md: 0px;
+  --radius-sm: 0px;
 }
 
-* {
-  font-family: "Times New Roman", "Times", Georgia, serif !important;
+@layer base {
+  * {
+    @apply border-black;
+  }
+
+  html,
+  body,
+  #root {
+    border-radius: 0 !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    @apply bg-[#F8FAFC] text-black;
+    font-family: "Times New Roman", Times, serif;
+  }
 }
 
-body {
-  margin: 0;
-  background-color: #FFFFFF;
-  color: #1a1a1a;
-  font-family: "Times New Roman", "Times", Georgia, serif;
-}
-
+/* вспомогательные утилитарные классы */
 .price-old {
-  text-decoration: line-through;
-  color: #cc0000;
+  @apply text-red-600 line-through text-sm opacity-60;
 }
 
-/* Безрамочное окно со скруглёнными углами */
+.price-new {
+  @apply text-black font-black;
+}
+
+.discount-badge {
+  @apply bg-red-600 text-white px-2 py-1 font-bold text-xs;
+}
+
+/* кастомные стили фокуса элементов ввода */
+input:focus,
+select:focus {
+  @apply bg-[#E0F2FE] outline-none;
+}
+
+/* глобальная настройка отображения иконок в квадратном стиле */
+svg.lucide,
+svg {
+  stroke-linecap: square !important;
+  stroke-linejoin: miter !important;
+}
+
+/* tauri-специфичные правила — перетаскивание окна */
 [data-tauri-drag-region] {
   -webkit-app-region: drag;
 }
 
-button, a, input, select, textarea {
+button,
+a,
+input,
+select,
+textarea {
   -webkit-app-region: no-drag;
 }
 
-/* Анимация появления */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* кастомный квадратный скроллбар с акцентным цветом */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
 
-.animate-fade-in {
-  animation: fadeIn 300ms ease both;
+::-webkit-scrollbar-track {
+  background: #ffffff;
+  border-left: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #7FFF00;
+  border: 2px solid #000000;
+
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00FA9A;
+}
+
+::-webkit-scrollbar-corner {
+  background: #ffffff;
+  border: 2px solid #000000;
 }

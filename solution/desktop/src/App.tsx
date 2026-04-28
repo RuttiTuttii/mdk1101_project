@@ -1,4 +1,8 @@
+import { useState, useEffect, useMemo, type FormEvent } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { motion, AnimatePresence } from "framer-motion";
+import { ProductEditPage } from "@shared/pages/Product/ProductEditPage";
+import { mapApiProduct, parseRoute, routeToHash } from "@shared/lib/utils";
 import {
   apiAllOrders,
   apiCatalog,
@@ -9,65 +13,49 @@ import {
   apiOrders,
   apiProduct,
   apiRegister,
+  apiDeleteProduct,
   apiUpdateOrder,
 } from "@shared/api";
 import { buildSummary } from "@shared/catalog";
-
 import { CATALOG } from "@shared/data/catalog-data";
-import { Button } from "./components/ui/button";
-import { Avatar, AvatarFallback } from "./components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
-import { TooltipProvider } from "./components/ui/tooltip";
-import {
-  ShoppingBag,
-  Package,
-  User,
-  LogOut,
-  Store,
-  Menu,
-  X,
-  Tag,
-  Minus,
-  Square,
-} from "lucide-react";
+import { PixelIcon } from "@shared/components/Common/PixelIcon";
 import type {
   ApiOrder,
   AuthSession,
   CatalogFilters,
   Product,
   Route,
+  UpdateOrderPayload,
 } from "@shared/types";
 
-// импортируем наши новенькие страницы и утилиты из общей папки
 import { LoginPage } from "@shared/pages/Auth/LoginPage";
 import { RegisterPage } from "@shared/pages/Auth/RegisterPage";
 import { CatalogPage } from "@shared/pages/Catalog/CatalogPage";
 import { OrdersPage } from "@shared/pages/Orders/OrdersPage";
+import { AdminPage } from "@shared/pages/Admin/AdminPage";
 import { ProductPage } from "@shared/pages/Product/ProductPage";
-import { mapApiProduct, parseRoute, routeToHash } from "@shared/lib/utils";
-
-
-/**
- * десктопная версия приложения
- * тут у нас кастомный тайтлбар сверху, чтобы выглядело как нативное окно
- */
 
 const STORAGE_KEY = "shoe-store.session";
 const PENDING_ORDER_KEY = "shoe-store.pending-order";
 
 const DEFAULT_FILTERS: CatalogFilters = {
-
   search: "",
   manufacturer: "all",
   maxPrice: "",
   onlyDiscounted: false,
   onlyInStock: false,
   sortBy: "name",
+  page: 1,
+  pageSize: 10,
 };
 
 const DEFAULT_LOGIN = { login: "", password: "" };
 const DEFAULT_REGISTER = { fullName: "", login: "", password: "" };
 
+/**
+ * десктопная версия приложения.
+ * отличается от web: кастомный тайтлбар (data-tauri-drag-region) и apiMe для валидации сессии.
+ */
 export default function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [auth, setAuth] = useState<AuthSession | null>(null);
@@ -76,6 +64,7 @@ export default function App() {
   const [manufacturers, setManufacturers] = useState<string[]>(["all"]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [totalItems, setTotalItems] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -84,20 +73,20 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [loginForm, setLoginForm] = useState(DEFAULT_LOGIN);
   const [registerForm, setRegisterForm] = useState(DEFAULT_REGISTER);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // стандартные эффекты как в вебе
+  // отслеживание изменений хеша для навигации
   useEffect(() => {
-    const onHashChange = () => setRoute(parseRoute(window.location.hash));
+    const onHashChange = () => {
+      setRoute(parseRoute(window.location.hash));
+      setIsMenuOpen(false);
+    };
     window.addEventListener("hashchange", onHashChange);
-    if (!window.location.hash) {
-      window.location.hash = "#/catalog";
-    } else {
-      onHashChange();
-    }
+    if (!window.location.hash) window.location.hash = "#/catalog";
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // восстановление сессии из локального хранилища с валидацией через api
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return;
@@ -117,20 +106,23 @@ export default function App() {
     }
   }, []);
 
+  // загрузка данных каталога и списка производителей
   useEffect(() => {
     let active = true;
     setCatalogLoading(true);
     setCatalogError(null);
     Promise.all([apiCatalog(catalogFilters), apiManufacturers()])
-      .then(([items, manufacturerList]) => {
+      .then(([response, manufacturerList]) => {
         if (!active) return;
-        setProducts(items.map(mapApiProduct));
+        setProducts(response.items.map(mapApiProduct));
+        setTotalItems(response.total);
         setManufacturers(["all", ...manufacturerList]);
       })
-      .catch((error: Error) => {
+      .catch((e) => {
+        console.error("API error, falling back to mock data", e);
         if (!active) return;
-        setCatalogError(error.message);
         setProducts(CATALOG);
+        setTotalItems(CATALOG.length);
         setManufacturers(["all", ...new Set(CATALOG.map((p) => p.manufacturer))]);
       })
       .finally(() => {
@@ -139,28 +131,27 @@ export default function App() {
     return () => { active = false; };
   }, [catalogFilters]);
 
+  // загрузка детальной информации о товаре
   useEffect(() => {
     if (route.name !== "product") {
       setSelectedProduct(null);
       return;
     }
     let active = true;
-    setSelectedProduct(null);
-    setCatalogError(null);
     apiProduct(route.article)
       .then((item) => {
         if (!active) return;
         setSelectedProduct(mapApiProduct(item));
       })
-      .catch((error: Error) => {
+      .catch(() => {
         if (!active) return;
-        setCatalogError(error.message);
         const fallback = CATALOG.find((p) => p.article === route.article);
         if (fallback) setSelectedProduct(fallback);
       });
     return () => { active = false; };
   }, [route]);
 
+  // загрузка списка заказов пользователя
   useEffect(() => {
     if (route.name !== "orders" || !auth) return;
     let active = true;
@@ -172,9 +163,8 @@ export default function App() {
         if (!active) return;
         setOrders(items);
       })
-      .catch((error: Error) => {
-        if (!active) return;
-        setOrdersError(error.message);
+      .catch((err) => {
+        if (active) setOrdersError(err instanceof Error ? err.message : "ошибка загрузки заказов");
       })
       .finally(() => {
         if (active) setOrdersLoading(false);
@@ -183,238 +173,298 @@ export default function App() {
   }, [route, auth]);
 
   const summary = useMemo(() => buildSummary(products), [products]);
-  const featured = useMemo(() => products.find((item) => item.discountPercent > 15) ?? products[0], [products]);
 
+  // обработчик авторизации пользователя
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await authenticate(async () => apiLogin(loginForm), "добро пожаловать");
-  }
-
-  async function handleRegister(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await authenticate(async () => apiRegister({ ...registerForm, full_name: registerForm.fullName }), "аккаунт создан");
-  }
-
-  async function authenticate(loader: () => Promise<AuthSession>, successMessage: string) {
     try {
       setBusy(true);
-      const session = await loader();
-      commitSession(session);
-      setMessage(`${session.fullName}, ${successMessage}!`);
-      const ordered = await fulfillPendingOrder(session);
-      if (!ordered) navigate({ name: "catalog" });
+      const session = await apiLogin(loginForm);
+      setAuth(session);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      setMessage(`${session.fullName}, добро пожаловать!`);
+      const pending = sessionStorage.getItem(PENDING_ORDER_KEY);
+      if (pending) {
+        sessionStorage.removeItem(PENDING_ORDER_KEY);
+        await apiCreateOrder(session.token, { items: [{ article: pending, quantity: 1 }] });
+        setMessage("заказ создан автоматически после входа.");
+        navigate({ name: "orders" });
+      } else {
+        navigate({ name: "catalog" });
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось выполнить действие");
+      setMessage(error instanceof Error ? error.message : "ошибка авторизации");
     } finally {
       setBusy(false);
     }
   }
 
-  function commitSession(session: AuthSession) {
-    setAuth(session);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  // обработчик регистрации нового пользователя
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setBusy(true);
+      const session = await apiRegister({ ...registerForm, full_name: registerForm.fullName });
+      setAuth(session);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      setMessage("регистрация успешно завершена");
+      navigate({ name: "catalog" });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ошибка при регистрации");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function fulfillPendingOrder(session: AuthSession) {
-    const pending = sessionStorage.getItem(PENDING_ORDER_KEY);
-    if (!pending) return false;
-    sessionStorage.removeItem(PENDING_ORDER_KEY);
-    await apiCreateOrder(session.token, { items: [{ article: pending, quantity: 1 }] });
-    setMessage("Заказ создан автоматически после входа.");
-    navigate({ name: "orders" });
-    return true;
-  }
-
+  // создание нового заказа
   async function handleOrder(article: string) {
     if (!auth) {
       sessionStorage.setItem(PENDING_ORDER_KEY, article);
-      setMessage("Сначала войдите в систему, чтобы оформить заказ.");
+      setMessage("необходима авторизация для оформления заказа");
       navigate({ name: "login" });
       return;
     }
     try {
       setBusy(true);
       await apiCreateOrder(auth.token, { items: [{ article, quantity: 1 }] });
-      setMessage("Заказ оформлен!");
-      const fetcher = (auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders;
-      const items = await fetcher(auth.token);
-      setOrders(items);
+      setMessage("заказ успешно оформлен");
       navigate({ name: "orders" });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось оформить заказ");
+      setMessage(error instanceof Error ? error.message : "ошибка оформления заказа");
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleUpdateOrderStatus(number: number, newStatus: string) {
+  async function handleDeleteProduct(article: string) {
     if (!auth) return;
     try {
-      await apiUpdateOrder(auth.token, number, { status: newStatus });
-      setMessage(`Статус заказа #${number} обновлён`);
-      const fetcher = (auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders;
-      const items = await fetcher(auth.token);
-      setOrders(items);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось обновить статус");
+      setBusy(true);
+      await apiDeleteProduct(auth.token, article);
+      setMessage("товар удален.");
+      const response = await apiCatalog(catalogFilters);
+      setProducts(response.items.map(mapApiProduct));
+      setTotalItems(response.total);
+      navigate({ name: "catalog" });
+    } catch {
+      setMessage("ошибка при удалении товара.");
+    } finally {
+      setBusy(false);
     }
   }
 
+  async function handleUpdateOrderStatus(number: number, status: string, deliveryDate?: string) {
+    if (!auth) return;
+    try {
+      setBusy(true);
+      const payload: UpdateOrderPayload = { status };
+      if (deliveryDate) payload.delivery_date = deliveryDate;
+      await apiUpdateOrder(auth.token, number, payload);
+      setMessage("заказ обновлен.");
+      const list = auth.role === "client" ? await apiOrders(auth.token) : await apiAllOrders(auth.token);
+      setOrders(list);
+    } catch {
+      setMessage("ошибка при обновлении заказа.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function navigate(route: Route) {
+    window.location.hash = routeToHash(route);
+  }
+
+  // выход пользователя из системы
   function handleLogout() {
     setAuth(null);
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(PENDING_ORDER_KEY);
     setOrders([]);
-    setMessage("Вы вышли из системы.");
+    setMessage("вы вышли из системы");
     navigate({ name: "catalog" });
   }
 
-  function navigate(route: Route) {
-    window.location.hash = routeToHash(route);
-    setMobileMenuOpen(false);
-  }
-
   return (
-    <TooltipProvider>
+    <div className="min-h-screen bg-[#F8FAFC]" style={{ fontFamily: "'Times New Roman', Times, serif", borderRadius: 0 }}>
+      {/* кастомный тайтлбар — фиксированный, не скроллится с контентом */}
       <div
-        className="min-h-screen flex flex-col"
-        style={{
-          fontFamily: "'Times New Roman', Times, Georgia, serif",
-          backgroundColor: "#FFFFFF",
-          borderRadius: "12px",
-          overflow: "hidden",
-          border: "1px solid #e0e0e0",
-        }}
+        data-tauri-drag-region
+        className="fixed top-0 left-0 right-0 z-[200] flex items-center justify-between h-8 px-3 select-none border-b-2 border-black"
+        style={{ backgroundColor: "#7FFF00" }}
       >
-        {/* кастомный тайтлбар для десктопа — за него можно перетаскивать окно */}
-        <div
-          data-tauri-drag-region
-          className="flex items-center justify-between h-10 px-4 select-none shrink-0"
-          style={{ backgroundColor: "#2E8B57", color: "#FFFFFF" }}
-        >
-          <div className="flex items-center gap-2">
-            <Store className="h-4 w-4" />
-            <span className="text-sm font-bold">ShoeStore Desktop</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-white/20" style={{ color: "#FFFFFF" }}>
-              <Minus className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-white/20" style={{ color: "#FFFFFF" }}>
-              <Square className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-red-500" style={{ color: "#FFFFFF" }}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+        {/* левая часть — заголовок */}
+        <span className="text-[11px] font-black uppercase tracking-widest pointer-events-none" data-tauri-drag-region>ShoeStore Desktop</span>
+
+        {/* кнопки управления окном */}
+        <div className="flex items-center gap-0">
+          {/* скрыть */}
+          <button
+            onClick={() => getCurrentWindow().minimize()}
+            className="w-8 h-8 flex items-center justify-center hover:bg-black/20 transition-colors font-bold text-base leading-none"
+            title="Свернуть"
+          >
+            <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
+              <rect width="10" height="2" fill="currentColor" />
+            </svg>
+          </button>
+          {/* развернуть / восстановить */}
+          <button
+            onClick={() => getCurrentWindow().toggleMaximize()}
+            className="w-8 h-8 flex items-center justify-center hover:bg-black/20 transition-colors"
+            title="Развернуть"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <rect x="1" y="1" width="8" height="8" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </button>
+          {/* закрыть */}
+          <button
+            onClick={() => getCurrentWindow().close()}
+            className="w-8 h-8 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors"
+            title="Закрыть"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" strokeWidth="2" />
+              <line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* отступ под фиксированный тайтлбар (32px = h-8) */}
+      <div style={{ height: 32 }} />
+
+      {/* основной заголовок приложения с навигацией */}
+      <header className="border-b-4 border-black bg-[#7FFF00] sticky top-8 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            className="flex items-center gap-3 sm:gap-6 cursor-pointer"
+            onClick={() => navigate({ name: "catalog" })}
+          >
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white border-2 border-black p-1">
+              <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-none">Обувной Магазин</h1>
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase opacity-80">официальное приложение</p>
+            </div>
+          </motion.div>
+
+          {/* блок навигации для десктопных устройств */}
+          <nav className="hidden md:flex items-center gap-2">
+            <button onClick={() => navigate({ name: "catalog" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm">Каталог</button>
+            <button onClick={() => navigate({ name: "orders" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm">Заказы</button>
+            {auth?.role === "admin" && (
+              <button onClick={() => navigate({ name: "admin" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm text-red-600">Админ</button>
+            )}
+            {auth ? (
+              <div className="flex items-center gap-4 ml-4 pl-4 border-l-2 border-black">
+                <div className="text-right">
+                  <p className="text-sm font-bold leading-tight">{auth.fullName}</p>
+                  <p className="text-[10px] uppercase font-bold opacity-60">{auth.role}</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  onClick={handleLogout}
+                  className="p-2 border-2 border-black bg-white hover:bg-black hover:text-white"
+                >
+                  <PixelIcon.Logout />
+                </motion.button>
+              </div>
+            ) : (
+              <motion.button
+                whileHover={{
+                  scale: 1.05,
+                  translateY: -2,
+                  translateX: -2,
+                  boxShadow: "6px 6px 0px 0px rgba(0,0,0,1)"
+                }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate({ name: "login" })}
+                className="ml-4 px-6 py-2 border-2 border-black bg-[#00FA9A] font-black uppercase hover:bg-black hover:text-white transition-all text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              >
+                Войти
+              </motion.button>
+            )}
+          </nav>
+
+          {/* кнопка управления мобильным меню */}
+          <button className="md:hidden p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            {isMenuOpen ? <PixelIcon.Close /> : <PixelIcon.Menu />}
+          </button>
         </div>
 
-        {/* навигация. на десктопе чуть компактнее */}
-        <header className="sticky top-10 z-50 w-full border-b shrink-0" style={{ backgroundColor: "#FFFFFF", borderColor: "#e0e0e0" }}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex h-14 items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate({ name: "catalog" })}>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#00FA9A" }}>
-                    <Store className="h-4 w-4" style={{ color: "#0a2e1a" }} />
-                  </div>
-                  <div>
-                    <h1 className="text-base font-bold">ShoeStore</h1>
-                    <p className="text-[9px] uppercase tracking-wider" style={{ color: "#666" }}>Desktop Edition</p>
-                  </div>
-                </div>
-              </div>
-
-              <nav className="hidden md:flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => navigate({ name: "catalog" })}>
-                  <ShoppingBag className="h-4 w-4 mr-2" />
-                  Каталог
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate({ name: "orders" })}>
-                  <Package className="h-4 w-4 mr-2" />
-                  Заказы
-                </Button>
-              </nav>
-
-              <div className="flex items-center gap-2">
-                {auth ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="gap-2 h-9">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[10px]" style={{ backgroundColor: "#00FA9A", color: "#0a2e1a" }}>
-                            {auth.fullName.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="hidden sm:inline text-sm font-medium">{auth.fullName}</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-bold">{auth.fullName}</p>
-                          <p className="text-xs" style={{ color: "#666" }}>{auth.login} · {auth.role}</p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => navigate({ name: "orders" })}>
-                        <Package className="mr-2 h-4 w-4" />
-                        Мои заказы
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate({ name: "catalog" })}>
-                        <ShoppingBag className="mr-2 h-4 w-4" />
-                        Каталог
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Выйти
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => navigate({ name: "login" })}>Войти</Button>
-                    <Button size="sm" onClick={() => navigate({ name: "register" })} style={{ backgroundColor: "#00FA9A", color: "#0a2e1a" }}>Регистрация</Button>
-                  </div>
+        {/* выпадающее меню для мобильных устройств */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="md:hidden bg-white border-t-2 border-black overflow-hidden"
+            >
+              <nav className="flex flex-col gap-4 mt-8 px-4 pb-8">
+                <button onClick={() => navigate({ name: "catalog" })} className="text-left py-2 font-black uppercase border-b border-black/10">Каталог</button>
+                {auth && (
+                  <button onClick={() => navigate({ name: "orders" })} className="text-left py-2 font-black uppercase border-b border-black/10">Заказы</button>
                 )}
-              </div>
-            </div>
-          </div>
-        </header>
+                {auth?.role === "admin" && (
+                  <button onClick={() => navigate({ name: "admin" })} className="text-left py-2 font-black uppercase border-b border-black/10 text-red-600">Админ-панель</button>
+                )}
+                {!auth ? (
+                  <button onClick={() => navigate({ name: "login" })} className="text-left py-2 font-black uppercase border-b border-black/10">Вход</button>
+                ) : (
+                  <button onClick={handleLogout} className="text-left py-2 font-black uppercase border-b border-black/10 text-red-600">Выход</button>
+                )}
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
 
-        {/* уведомления */}
+      {/* система всплывающих системных уведомлений */}
+      <AnimatePresence>
         {message && (
-          <div className="px-4 sm:px-6 lg:px-8 pt-4 shrink-0">
-            <div className="flex items-center gap-3 p-4 rounded-xl border" style={{ backgroundColor: "#f0fff0", borderColor: "#00FA9A" }}>
-              <Tag className="h-4 w-4 shrink-0" style={{ color: "#2E8B57" }} />
-              <span className="text-sm font-medium">{message}</span>
-              <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setMessage(null)}>
-                <X className="h-3 w-3" />
-              </Button>
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="fixed top-24 left-0 right-0 z-[100] max-w-7xl mx-auto px-4"
+          >
+            <div className="border-4 border-black p-4 bg-[#00FA9A] flex items-center justify-between font-black uppercase shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <span className="flex-grow">{message}</span>
+              <button onClick={() => setMessage(null)} className="ml-4 hover:scale-125 transition-transform"><PixelIcon.Close /></button>
             </div>
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* основной контент — на десктопе он скроллится внутри основного окна */}
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={route.name + (route.name === 'product' ? route.article : '')}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.2 }}
-              >
-                {renderPage()}
-              </motion.div>
-            </AnimatePresence>
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={route.name + ("article" in route ? route.article ?? "" : "")}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            {renderPage()}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* подвал сайта с правовой информацией */}
+      <footer className="border-t-4 border-black bg-white py-12 mt-20">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <div className="inline-block w-12 h-12 border-2 border-black p-2 mb-6 grayscale opacity-30">
+            <img src="/favicon.svg" alt="Logo" className="w-full h-full object-contain" />
           </div>
-        </main>
-
-      </div>
-    </TooltipProvider>
+          <p className="font-bold uppercase tracking-widest text-sm">© 2026 Обувной Магазин. Все права защищены.</p>
+          <p className="text-[10px] opacity-40 mt-4 uppercase font-bold">информационная система магазина обуви</p>
+        </div>
+      </footer>
+    </div>
   );
 
   function renderPage() {
@@ -424,11 +474,53 @@ export default function App() {
       case "register":
         return <RegisterPage busy={busy} registerForm={registerForm} onRegisterChange={setRegisterForm} onRegisterSubmit={handleRegister} onNavigate={navigate} />;
       case "orders":
-        return <OrdersPage auth={auth} orders={orders} loading={ordersLoading} error={ordersError} onGoLogin={() => navigate({ name: "login" })} onRefresh={() => auth && ((auth.role === "admin" || auth.role === "manager") ? apiAllOrders : apiOrders)(auth.token).then(setOrders)} onUpdateStatus={handleUpdateOrderStatus} />;
+        return <OrdersPage auth={auth} orders={orders} loading={ordersLoading} error={ordersError} onGoLogin={() => navigate({ name: "login" })} onRefresh={() => {}} onUpdateStatus={handleUpdateOrderStatus} />;
+      case "admin":
+        return <AdminPage auth={auth} onNavigate={navigate} setMessage={setMessage} />;
       case "product":
-        return <ProductPage auth={auth} product={selectedProduct} loading={catalogLoading && !selectedProduct} error={catalogError} onOrder={handleOrder} onGoLogin={() => navigate({ name: "login" })} onBack={() => navigate({ name: "catalog" })} />;
+        return (
+          <ProductPage
+            auth={auth}
+            product={selectedProduct}
+            loading={catalogLoading && !selectedProduct}
+            error={catalogError}
+            onOrder={handleOrder}
+            onEdit={() => navigate({ name: "product-edit", article: selectedProduct?.article ?? undefined })}
+            onDelete={handleDeleteProduct}
+            onGoLogin={() => navigate({ name: "login" })}
+            onBack={() => navigate({ name: "catalog" })}
+          />
+        );
+      case "product-edit":
+        return (
+          <ProductEditPage
+            auth={auth}
+            product={route.article ? (products.find(p => p.article === route.article) || selectedProduct) : null}
+            onSave={() => {
+              apiCatalog(catalogFilters).then(response => setProducts(response.items.map(mapApiProduct)));
+              navigate({ name: "catalog" });
+            }}
+            onBack={() => navigate({ name: "catalog" })}
+          />
+        );
       default:
-        return <CatalogPage featured={featured} summary={summary} products={products} manufacturers={manufacturers} filters={catalogFilters} loading={catalogLoading} error={catalogError} onFiltersChange={setCatalogFilters} onOrder={handleOrder} onProduct={(article) => navigate({ name: "product", article })} defaultFilters={DEFAULT_FILTERS} />;
+        return (
+          <CatalogPage
+            auth={auth}
+            summary={summary}
+            products={products}
+            manufacturers={manufacturers}
+            filters={catalogFilters}
+            loading={catalogLoading}
+            error={catalogError}
+            totalItems={totalItems}
+            onFiltersChange={setCatalogFilters}
+            onOrder={handleOrder}
+            onProduct={(article) => navigate({ name: "product", article })}
+            onAddProduct={() => navigate({ name: "product-edit" })}
+            defaultFilters={DEFAULT_FILTERS}
+          />
+        );
     }
   }
 }

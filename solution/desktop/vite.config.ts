@@ -11,6 +11,8 @@ export default defineConfig(async () => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared/src"),
+      "clsx": path.resolve(__dirname, "./node_modules/clsx"),
+      "tailwind-merge": path.resolve(__dirname, "./node_modules/tailwind-merge"),
     },
   },
   clearScreen: false,
@@ -35,6 +37,7 @@ export default defineConfig(async () => ({
       "/orders": "http://127.0.0.1:8000",
       "/manufacturers": "http://127.0.0.1:8000",
       "/health": "http://127.0.0.1:8000",
+      "/admin": "http://127.0.0.1:8000",
     },
   },
 }));
