@@ -1,11 +1,10 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
+import csv
+import io
 from calendar import monthrange
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass
 from decimal import Decimal
+from datetime import date, datetime, timedelta
 from pathlib import Path
-
 from openpyxl import load_workbook
 
 from .domain import Order, OrderItem, OrderStatus, Product, Role, User
@@ -21,32 +20,77 @@ class ImportedDataset:
 def load_dataset(import_dir: Path) -> ImportedDataset:
     products = load_products(import_dir / "Tovar.xlsx")
     users = load_users(import_dir / "user_import.xlsx")
-    orders = load_orders(import_dir / "Заказ_import.xlsx", products)
+    # строим словарь «полное имя → логин» для сопоставления заказов
+    name_to_login: dict[str, str] = {u.full_name: u.login for u in users}
+    orders = load_orders(import_dir / "Заказ_import.xlsx", products, name_to_login)
     return ImportedDataset(products=products, users=users, orders=orders)
 
 
 def load_products(path: Path) -> list[Product]:
-    ws = load_workbook(path, data_only=True).active
-    rows = list(ws.iter_rows(values_only=True))
+    """загрузка товаров из файла excel по пути."""
+    with open(path, "rb") as f:
+        return generic_load_products(f, path.name)
+
+
+def generic_load_products(file_stream, filename: str) -> list[Product]:
+    """универсальный загрузчик товаров из потока данных (csv или xlsx)."""
+    if filename.lower().endswith((".xlsx", ".xls")):
+        wb = load_workbook(io.BytesIO(file_stream.read()), data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        data_rows = rows[1:]
+    else:
+        # считаем что это csv
+        content = file_stream.read().decode("utf-8")
+        reader = csv.reader(io.StringIO(content), delimiter=";")
+        rows = list(reader)
+        data_rows = rows[1:]
+
     products: list[Product] = []
-    for row in rows[1:]:
-        if not row or not row[0]:
+    for row in data_rows:
+        if not row or len(row) < 4 or not row[0]:
             continue
-        products.append(
-            Product(
-                article=str(row[0]).strip(),
-                name=str(row[1]).strip(),
-                unit=str(row[2]).strip(),
-                price=Decimal(str(row[3])),
-                supplier=str(row[4]).strip(),
-                manufacturer=str(row[5]).strip(),
-                category=str(row[6]).strip(),
-                discount_percent=int(row[7] or 0),
-                stock_count=int(row[8] or 0),
-                description=str(row[9]).strip(),
-                image_path=str(row[10]).strip() if row[10] else None,
+        try:
+            # вспомогательные функции для безопасного парсинга
+            def to_int(val):
+                if val is None: return 0
+                if isinstance(val, (int, float)): return int(val)
+                s = str(val).strip()
+                if not s: return 0
+                try:
+                    return int(float(s.replace(",", ".")))
+                except ValueError:
+                    return 0
+
+            def to_decimal(val):
+                if val is None: return Decimal("0")
+                if isinstance(val, (int, float, Decimal)): return Decimal(str(val))
+                s = str(val).strip().replace(",", ".").replace(" ", "")
+                if not s: return Decimal("0")
+                try:
+                    return Decimal(s)
+                except Exception:
+                    return Decimal("0")
+
+            products.append(
+                Product(
+                    article=str(row[0]).strip(),
+                    name=str(row[1]).strip() if len(row) > 1 else "без названия",
+                    unit=str(row[2]).strip() if len(row) > 2 else "шт.",
+                    price=to_decimal(row[3]) if len(row) > 3 else Decimal("0"),
+                    supplier=str(row[4]).strip() if len(row) > 4 else "неизвестно",
+                    manufacturer=str(row[5]).strip() if len(row) > 5 else "неизвестно",
+                    category=str(row[6]).strip() if len(row) > 6 else "общая",
+                    discount_percent=to_int(row[7]) if len(row) > 7 else 0,
+                    stock_count=to_int(row[8]) if len(row) > 8 else 0,
+                    description=str(row[9]).strip() if len(row) > 9 and row[9] else "",
+                    image_path=str(row[10]).strip() if len(row) > 10 and row[10] else None,
+                    max_discount_percent=15, # в файле нет этого поля, ставим дефолт
+                )
             )
-        )
+        except Exception:
+            # всё равно пропускаем битые строки, но теперь их будет меньше
+            continue
     return products
 
 
@@ -69,7 +113,11 @@ def load_users(path: Path) -> list[User]:
     return users
 
 
-def load_orders(path: Path, products: list[Product]) -> list[Order]:
+def load_orders(
+    path: Path,
+    products: list[Product],
+    name_to_login: dict[str, str],
+) -> list[Order]:
     ws = load_workbook(path, data_only=True).active
     rows = list(ws.iter_rows(values_only=True))
     catalog = {product.article: product for product in products}
@@ -77,6 +125,8 @@ def load_orders(path: Path, products: list[Product]) -> list[Order]:
     for row in rows[1:]:
         if not row or row[0] is None:
             continue
+        full_name = str(row[4] or "").strip()
+        login = name_to_login.get(full_name, "")
         lines = parse_order_lines(str(row[1] or ""))
         items = [
             OrderItem(article=article, quantity=quantity, unit_price=catalog[article].discounted_price)
@@ -86,7 +136,7 @@ def load_orders(path: Path, products: list[Product]) -> list[Order]:
         orders.append(
             Order(
                 number=int(row[0]),
-                user_login=lookup_login(row[4]),
+                user_login=login,
                 created_at=normalize_date(row[2]),
                 delivery_date=normalize_date(row[3]),
                 pickup_code=int(row[5]),
@@ -167,8 +217,5 @@ def _parse_ru_date(text: str) -> date | None:
     return date(year, month, day)
 
 
-def lookup_login(full_name: object) -> str:
-    value = str(full_name or "").strip()
-    if not value:
-        return ""
-    return value.lower().replace(" ", ".")
+# lookup_login удалена: логины в user_import.xlsx — это email-адреса,
+# а не транслитерация ФИО. сопоставление теперь идёт через name_to_login.

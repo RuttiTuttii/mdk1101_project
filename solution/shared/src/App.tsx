@@ -46,6 +46,8 @@ const DEFAULT_FILTERS: CatalogFilters = {
   onlyDiscounted: false,
   onlyInStock: false,
   sortBy: "name",
+  page: 1,
+  pageSize: 10,
 };
 
 const DEFAULT_LOGIN = {
@@ -67,6 +69,7 @@ export default function App() {
   const [manufacturers, setManufacturers] = useState<string[]>(["all"]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [totalItems, setTotalItems] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -113,13 +116,26 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    apiManufacturers()
+      .then((list) => {
+        if (active) setManufacturers(["all", ...list]);
+      })
+      .catch((err) => console.error("Failed to load manufacturers", err));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     setCatalogLoading(true);
     setCatalogError(null);
-    Promise.all([apiCatalog(catalogFilters), apiManufacturers()])
-      .then(([items, manufacturerList]) => {
+    
+    console.log("FETCHING CATALOG:", catalogFilters);
+    apiCatalog(catalogFilters)
+      .then((response) => {
         if (!active) return;
-        setProducts(items.map(mapApiProduct));
-        setManufacturers(["all", ...manufacturerList]);
+        console.log("CATALOG RESPONSE:", response.total, "items");
+        setProducts(response.items.map(mapApiProduct));
+        setTotalItems(response.total);
       })
       .catch((error: Error) => {
         if (!active) return;
@@ -128,6 +144,7 @@ export default function App() {
       .finally(() => {
         if (active) setCatalogLoading(false);
       });
+      
     return () => {
       active = false;
     };
@@ -283,6 +300,15 @@ export default function App() {
     </main>
   );
 
+  function handleFiltersChange(newFilters: CatalogFilters) {
+    // если изменилось что-то кроме страницы — сбрасываем на первую
+    const isPageChange = newFilters.page !== catalogFilters.page;
+    if (!isPageChange && newFilters.page !== 1) {
+      newFilters.page = 1;
+    }
+    setCatalogFilters(newFilters);
+  }
+
   function renderPage() {
     switch (route.name) {
       case "login":
@@ -346,7 +372,8 @@ export default function App() {
             filters={catalogFilters}
             loading={catalogLoading}
             error={catalogError}
-            onFiltersChange={setCatalogFilters}
+            totalItems={totalItems}
+            onFiltersChange={handleFiltersChange}
             onOrder={handleOrder}
             onProduct={(article) => navigate({ name: "product", article })}
             onGoLogin={() => navigate({ name: "login" })}
@@ -422,6 +449,7 @@ function CatalogPage({
   filters,
   loading,
   error,
+  totalItems,
   onFiltersChange,
   onOrder,
   onProduct,
@@ -437,6 +465,7 @@ function CatalogPage({
   filters: CatalogFilters;
   loading: boolean;
   error: string | null;
+  totalItems: number;
   onFiltersChange: (filters: CatalogFilters) => void;
   onOrder: (article: string) => Promise<void>;
   onProduct: (article: string) => void;
@@ -444,6 +473,12 @@ function CatalogPage({
   onGoRegister: () => void;
   onGoOrders: () => void;
 }) {
+  const totalPages = Math.ceil(totalItems / filters.pageSize);
+  
+  const handlePageChange = (page: number) => {
+    onFiltersChange({ ...filters, page });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   return (
     <>
       <section className="hero">
@@ -511,7 +546,7 @@ function CatalogPage({
 
           <CardContent>
             <div className="feature__media">
-              <img src={featured?.imagePath ?? "/picture.png"} alt={featured?.name ?? "catalog"} />
+              <img src={featured?.imagePath || "/picture.png"} alt={featured?.name ?? "catalog"} />
               {featured && featured.stockCount <= 0 ? (
                 <span className="feature__flag">нет на складе</span>
               ) : null}
@@ -656,23 +691,39 @@ function CatalogPage({
           {error ? <div className="message-bar message-bar--error">{error}</div> : null}
 
           <div className="catalog__grid">
-            {products.length > 0 ? (
-              products.map((product, index) => (
-                <ProductCard
-                  key={product.article}
-                  product={product}
-                  index={index}
-                  onOrder={onOrder}
-                  onOpen={() => onProduct(product.article)}
-                  loggedIn={Boolean(auth)}
-                />
-              ))
-            ) : loading ? (
-              <CatalogSkeleton />
-            ) : (
-              <EmptyState onReset={() => onFiltersChange(DEFAULT_FILTERS)} />
-            )}
+            {products.map((product, index) => (
+              <ProductCard
+                key={product.article}
+                product={product}
+                index={index}
+                loggedIn={!!auth}
+                onOrder={onOrder}
+                onOpen={() => onProduct(product.article)}
+              />
+            ))}
           </div>
+
+          {totalPages > 1 && (
+            <div className="catalog__pagination">
+              <Button
+                variant="outline"
+                disabled={filters.page <= 1}
+                onClick={() => onFiltersChange({ ...filters, page: filters.page - 1 })}
+              >
+                назад
+              </Button>
+              <div className="pagination__info">
+                страница <strong>{filters.page}</strong> из {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                disabled={filters.page >= totalPages}
+                onClick={() => onFiltersChange({ ...filters, page: filters.page + 1 })}
+              >
+                вперед
+              </Button>
+            </div>
+          )}
         </section>
 
         <aside className="rail">
@@ -745,7 +796,7 @@ function ProductCard({
       style={{ animationDelay: `${index * 75}ms` }}
     >
       <button className="product-card__media product-card__media--button" type="button" onClick={onOpen}>
-        <img src={product.imagePath ?? "/picture.png"} alt={product.name} />
+        <img src={product.imagePath || "/picture.png"} alt={product.name} />
         <Badge tone={featured ? "success" : "soft"}>{product.article}</Badge>
       </button>
 
@@ -1063,7 +1114,7 @@ function ProductPage({
 
         <CardContent className="detail-card__content">
           <div className="feature__media">
-            <img src={product.imagePath ?? "/picture.png"} alt={product.name} />
+            <img src={product.imagePath || "/picture.png"} alt={product.name} />
             {product.stockCount <= 0 ? <span className="feature__flag">нет на складе</span> : null}
           </div>
 
@@ -1173,12 +1224,12 @@ function parseRoute(hash: string): Route {
   if (parts[0] === "login") return { name: "login" };
   if (parts[0] === "register") return { name: "register" };
   if (parts[0] === "orders") return { name: "orders" };
-  if (parts[0] === "product" && parts[1]) return { name: "product", article: parts[1] };
+  if (parts[0] === "product" && parts[1]) return { name: "product", article: decodeURIComponent(parts[1]) };
   return { name: "catalog" };
 }
 
 function routeToHash(route: Route): string {
-  if (route.name === "product") return `#/product/${route.article}`;
+  if (route.name === "product") return `#/product/${encodeURIComponent(route.article)}`;
   return `#/${route.name}`;
 }
 

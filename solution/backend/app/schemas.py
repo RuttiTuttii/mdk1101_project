@@ -43,8 +43,9 @@ class ProductBase(BaseModel):
     category: str
     unit: str
     price: Decimal
-    discount_percent: int = Field(ge=0, le=100)
-    stock_count: int = Field(ge=0)
+    max_discount_percent: int = Field(default=0, ge=0, le=100)
+    discount_percent: int = Field(default=0, ge=0, le=100)
+    stock_count: int = Field(default=0, ge=0)
     image_path: str | None = None
 
 
@@ -60,6 +61,7 @@ class ProductUpdate(BaseModel):
     category: str | None = None
     unit: str | None = None
     price: Decimal | None = None
+    max_discount_percent: int | None = Field(default=None, ge=0, le=100)
     discount_percent: int | None = Field(default=None, ge=0, le=100)
     stock_count: int | None = Field(default=None, ge=0)
     image_path: str | None = None
@@ -106,4 +108,11 @@ class OrderResponse(BaseModel):
 
 class CatalogQueryResponse(ProductResponse):
     pass
+
+
+class PaginatedCatalogResponse(BaseModel):
+    items: list[ProductResponse]
+    total: int
+    page: int
+    page_size: int
 

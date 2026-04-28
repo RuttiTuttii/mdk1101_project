@@ -36,6 +36,7 @@ def _product_from_db(p: ProductModel) -> Product:
         category=p.category.name if p.category else "",
         unit=p.unit,
         price=Decimal(str(p.price)),
+        max_discount_percent=p.max_discount_percent,
         discount_percent=p.discount_percent,
         stock_count=p.stock_count,
         image_path=p.image_path,
@@ -164,6 +165,7 @@ def upsert_product(db: Session, product: Product) -> Product:
         row.category_id = cat.id
         row.unit = product.unit
         row.price = product.price
+        row.max_discount_percent = product.max_discount_percent
         row.discount_percent = product.discount_percent
         row.stock_count = product.stock_count
         row.image_path = product.image_path
@@ -178,6 +180,7 @@ def upsert_product(db: Session, product: Product) -> Product:
             category_id=cat.id,
             unit=product.unit,
             price=product.price,
+            max_discount_percent=product.max_discount_percent,
             discount_percent=product.discount_percent,
             stock_count=product.stock_count,
             image_path=product.image_path,
@@ -200,10 +203,13 @@ def list_products(db: Session) -> list[Product]:
 
 
 def delete_product(db: Session, article: str) -> bool:
-    """удаляем товар по артикулу."""
+    """удаляем товар по артикулу с проверкой на наличие в заказах."""
     row = db.query(ProductModel).filter_by(article=article).first()
     if not row:
         return False
+    # проверяем, нет ли товара в существующих заказах (по тз)
+    if db.query(OrderItemModel).filter_by(product_article=article).first():
+        raise ValueError("нельзя удалить товар, который уже есть в заказах")
     db.delete(row)
     db.commit()
     return True

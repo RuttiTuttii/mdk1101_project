@@ -32,25 +32,25 @@ export function RegisterPage({
           >
             <PixelIcon.UserPlus />
           </motion.div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">Регистрация</h1>
+          <h1 className="text-3xl font-black uppercase tracking-tight">регистрация</h1>
           <p className="font-bold opacity-70">создание новой учетной записи</p>
         </div>
 
         {/* форма регистрации пользователя */}
         <form onSubmit={onRegisterSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label className="font-bold block uppercase text-[10px] opacity-60">Полное имя</label>
+            <label className="font-bold block uppercase text-[10px] opacity-60">полное имя</label>
             <input
               type="text"
               className="w-full border-2 border-black p-3 focus:bg-[#E0F2FE] outline-none font-bold"
               value={registerForm.fullName}
               onChange={(e) => onRegisterChange({ ...registerForm, fullName: e.target.value })}
               required
-              placeholder="Иванов Иван Иванович"
+              placeholder="иванов иван иванович"
             />
           </div>
           <div className="space-y-2">
-            <label className="font-bold block uppercase text-[10px] opacity-60">Логин / Email</label>
+            <label className="font-bold block uppercase text-[10px] opacity-60">логин / email</label>
             <input
               type="text"
               className="w-full border-2 border-black p-3 focus:bg-[#E0F2FE] outline-none font-bold"
@@ -61,7 +61,7 @@ export function RegisterPage({
             />
           </div>
           <div className="space-y-2">
-            <label className="font-bold block uppercase text-[10px] opacity-60">Пароль</label>
+            <label className="font-bold block uppercase text-[10px] opacity-60">пароль</label>
             <input
               type="password"
               className="w-full border-2 border-black p-3 focus:bg-[#E0F2FE] outline-none font-bold"
@@ -84,21 +84,21 @@ export function RegisterPage({
             ) : (
               <>
                 <PixelIcon.Shield />
-                Создать аккаунт
+                создать аккаунт
               </>
             )}
           </motion.button>
         </form>
 
         <div className="mt-8 text-center border-t-2 border-black pt-6">
-          <p className="font-bold mb-2">Уже есть аккаунт?</p>
+          <p className="font-bold mb-2">уже есть аккаунт?</p>
           <motion.button
             whileHover={{ x: -5 }}
             className="uppercase text-sm font-black underline flex items-center justify-center gap-2 mx-auto"
             onClick={() => onNavigate({ name: "login" })}
           >
             <PixelIcon.ArrowLeft />
-            Войти в систему
+            войти в систему
           </motion.button>
         </div>
       </motion.div>

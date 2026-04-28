@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { PixelIcon } from "../../components/Common/PixelIcon";
 import { type AuthSession, type Product } from "@shared/types";
@@ -9,6 +10,8 @@ interface ProductPageProps {
   loading: boolean;
   error: string | null;
   onOrder: (article: string) => Promise<void>;
+  onEdit: () => void;
+  onDelete: (article: string) => Promise<void>;
   onGoLogin: () => void;
   onBack: () => void;
 }
@@ -19,9 +22,12 @@ export function ProductPage({
   loading,
   error,
   onOrder,
+  onEdit,
+  onDelete,
   onGoLogin,
   onBack,
 }: ProductPageProps) {
+  const [deleting, setDeleting] = useState(false);
   // отображение состояния загрузки
   if (loading) {
     return (
@@ -83,7 +89,7 @@ export function ProductPage({
         >
             <motion.img
               whileHover={{ scale: 1.1 }}
-              src={product.imagePath ?? "/picture.png"}
+              src={product.imagePath || "/picture.png"}
               alt={product.name}
               className="max-w-full max-h-full object-contain transition-transform"
               onError={(e) => { (e.target as HTMLImageElement).src = "/picture.png"; }}
@@ -172,13 +178,13 @@ export function ProductPage({
             <div className="space-y-2 border-t-2 border-black pt-6">
                 <p className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1">
                   <PixelIcon.Package />
-                  Описание товара
+                  описание товара
                 </p>
                 <p className="text-sm leading-relaxed">{product.description}</p>
             </div>
 
-            {/* кнопка заказа товара */}
-            <div className="pt-4">
+            {/* кнопки заказа товара и управления */}
+            <div className="pt-4 space-y-4">
                 {auth ? (
                     <motion.button 
                         whileHover={{ scale: 1.02 }}
@@ -200,6 +206,33 @@ export function ProductPage({
                         <PixelIcon.User />
                         ВОЙТИ И КУПИТЬ
                     </motion.button>
+                )}
+
+                {/* кнопки управления для админов и менеджеров */}
+                {(auth?.role === "admin" || auth?.role === "manager") && (
+                    <div className="flex gap-4 pt-4 border-t-2 border-black">
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            onClick={onEdit}
+                            className="flex-1 py-3 border-4 border-black bg-[#FFD700] font-black uppercase text-xs hover:bg-black hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                            <PixelIcon.Edit /> редактировать
+                        </motion.button>
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            disabled={deleting}
+                            onClick={async () => {
+                                if (confirm("точно удалить этот товар?")) {
+                                    setDeleting(true);
+                                    await onDelete(product.article);
+                                    setDeleting(false);
+                                }
+                            }}
+                            className="flex-1 py-3 border-4 border-black bg-red-600 text-white font-black uppercase text-xs hover:bg-black transition-all flex items-center justify-center gap-2"
+                        >
+                            {deleting ? "удаление..." : <><PixelIcon.Trash /> удалить</>}
+                        </motion.button>
+                    </div>
                 )}
             </div>
           </div>

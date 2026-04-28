@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -22,6 +24,7 @@ from .schemas import (
     OrderItemResponse,
     OrderResponse,
     OrderUpdateRequest,
+    PaginatedCatalogResponse,
     ProductCreate,
     ProductResponse,
     ProductUpdate,
@@ -45,11 +48,13 @@ app.add_middleware(
 def on_startup():
     """при старте — инициализируем таблицы и заполняем данные."""
     init_db()
-    # проверяем, пустая ли база — если да, заполняем из excel
+    # проверяем, пустая ли база или нет системных юзеров — если да, заполняем
     from .database import SessionLocal
     db = SessionLocal()
     try:
-        if not crud.list_products(db):
+        has_products = len(crud.list_products(db)) > 0
+        has_admin = crud.get_user_by_login(db, "94d5ous@gmail.com") is not None
+        if not has_products or not has_admin:
             from .seed import seed
             seed()
     finally:
@@ -70,6 +75,7 @@ def product_to_response(product: Product) -> ProductResponse:
         category=product.category,
         unit=product.unit,
         price=product.price,
+        max_discount_percent=product.max_discount_percent,
         discount_percent=product.discount_percent,
         stock_count=product.stock_count,
         image_path=product.image_path,
@@ -187,7 +193,7 @@ def manufacturers(db: Session = Depends(get_db)) -> list[str]:
     return crud.list_manufacturer_names(db)
 
 
-@app.get("/catalog", response_model=list[CatalogQueryResponse])
+@app.get("/catalog", response_model=PaginatedCatalogResponse)
 def catalog(
     search: str = "",
     manufacturer: str | None = Query(default=None),
@@ -195,11 +201,18 @@ def catalog(
     only_discounted: bool = False,
     only_in_stock: bool = False,
     sort_by: SortKey = SortKey.NAME,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
-) -> list[CatalogQueryResponse]:
-    """каталог товаров с фильтрами и сортировкой."""
+) -> PaginatedCatalogResponse:
+    """каталог товаров с фильтрами и пагинацией."""
+    # нормализуем 'all' -> None
+    if manufacturer == "all":
+        manufacturer = None
+        
+    print(f"DEBUG: catalog request - search='{search}', manufacturer='{manufacturer}', max_price={max_price}, page={page}")
     products = crud.list_products(db)
-    items = apply_catalog_query(
+    items, total = apply_catalog_query(
         products,
         CatalogQuery(
             search=search,
@@ -208,9 +221,28 @@ def catalog(
             only_discounted=only_discounted,
             only_in_stock=only_in_stock,
             sort_by=sort_by,
+            page=page,
+            page_size=page_size,
         ),
     )
-    return [product_to_response(product) for product in items]
+    return PaginatedCatalogResponse(
+        items=[product_to_response(product) for product in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@app.get("/debug_catalog")
+def debug_catalog(
+    manufacturer: str | None = None,
+    db: Session = Depends(get_db)
+):
+    print(f"DEBUG_CATALOG: manufacturer='{manufacturer}'")
+    products = crud.list_products(db)
+    if manufacturer and manufacturer != "all":
+        products = [p for p in products if p.manufacturer == manufacturer]
+    return {"count": len(products), "manufacturer": manufacturer}
 
 
 @app.get("/products/{article}", response_model=ProductResponse)
@@ -256,9 +288,12 @@ def delete_product(
     _: User = Depends(require_roles(Role.ADMIN, Role.MANAGER)),
     db: Session = Depends(get_db),
 ) -> None:
-    """удаляем товар (admin/manager)."""
-    if not crud.delete_product(db, article):
-        raise HTTPException(status_code=404, detail="Product not found")
+    """удаляем товар (admin/manager) с обработкой ошибок бизнес-логики."""
+    try:
+        if not crud.delete_product(db, article):
+            raise HTTPException(status_code=404, detail="Product not found")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @app.get("/orders", response_model=list[OrderResponse])
@@ -297,6 +332,47 @@ def create_order(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return order_to_response(order, db)
+
+
+@app.post("/admin/parse-file", response_model=list[ProductResponse])
+def parse_file(
+    file: UploadFile = File(...),
+    _: User = Depends(require_roles(Role.ADMIN)),
+) -> list[ProductResponse]:
+    """универсальный парсинг файлов (csv, xlsx) для предпросмотра товаров."""
+    from .importer import generic_load_products
+    
+    try:
+        domain_products = generic_load_products(file.file, file.filename)
+        return [product_to_response(p) for p in domain_products]
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"ошибка при разборе файла: {str(exc)}"
+        ) from exc
+
+
+@app.post("/admin/import-products", status_code=status.HTTP_201_CREATED)
+def import_products(
+    payload: list[ProductCreate],
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(Role.ADMIN)),
+) -> dict[str, str]:
+    """сохраняем выбранные админом товары в базу."""
+    count = 0
+    for item in payload:
+        try:
+            # создаём доменный объект для передачи в crud
+            product_data = item.model_dump()
+            product = Product(**product_data)
+            crud.upsert_product(db, product)
+            count += 1
+        except Exception as e:
+            # логируем ошибку для конкретного товара, но продолжаем цикл
+            print(f"ошибка при импорте товара {item.article}: {e}")
+            continue
+            
+    return {"status": "imported", "count": str(count)}
 
 
 @app.patch("/orders/{number}", response_model=OrderResponse)

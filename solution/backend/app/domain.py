@@ -38,6 +38,7 @@ class Product:
     category: str
     unit: str
     price: Decimal
+    max_discount_percent: int = 0
     discount_percent: int = 0
     stock_count: int = 0
     image_path: str | None = None
@@ -105,14 +106,17 @@ class CatalogQuery:
     only_discounted: bool = False
     only_in_stock: bool = False
     sort_by: SortKey = SortKey.NAME
+    page: int = 1
+    page_size: int = 10
 
 
-def apply_catalog_query(products: Iterable[Product], query: CatalogQuery) -> list[Product]:
+def apply_catalog_query(products: Iterable[Product], query: CatalogQuery) -> tuple[list[Product], int]:
     items = list(products)
     if query.search:
         items = [p for p in items if p.matches_description(query.search)]
     if query.manufacturer and query.manufacturer != "all":
-        items = [p for p in items if p.manufacturer == query.manufacturer]
+        m_query = query.manufacturer.strip().casefold()
+        items = [p for p in items if p.manufacturer.strip().casefold() == m_query]
     if query.max_price is not None:
         items = [p for p in items if p.discounted_price <= query.max_price]
     if query.only_discounted:
@@ -128,7 +132,11 @@ def apply_catalog_query(products: Iterable[Product], query: CatalogQuery) -> lis
         items.sort(key=lambda p: (p.discounted_price, p.article))
     elif query.sort_by == SortKey.PRICE_DESC:
         items.sort(key=lambda p: (p.discounted_price, p.article), reverse=True)
-    return items
+
+    total = len(items)
+    start = (query.page - 1) * query.page_size
+    end = start + query.page_size
+    return items[start:end], total
 
 
 def generate_pickup_code(seed: int | None = None) -> int:

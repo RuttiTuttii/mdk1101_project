@@ -644,6 +644,25 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
+.catalog__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pagination__info {
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+
+.pagination__info strong {
+  color: var(--foreground);
+}
+
 .product-card {
   display: grid;
   gap: 12px;

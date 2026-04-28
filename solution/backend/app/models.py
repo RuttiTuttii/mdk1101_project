@@ -89,6 +89,7 @@ class ProductModel(Base):
     category_id: Mapped[int] = mapped_column(Integer, ForeignKey("categories.id"), nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False, default="шт")
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    max_discount_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     discount_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     stock_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

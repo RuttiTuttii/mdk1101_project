@@ -1,15 +1,8 @@
 import { useState, useEffect, useMemo, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  apiAllOrders,
-  apiCatalog,
-  apiCreateOrder,
-  apiLogin,
-  apiManufacturers,
-  apiOrders,
-  apiProduct,
-  apiRegister,
-} from "@shared/api";
+import { ProductEditPage } from "@shared/pages/Product/ProductEditPage";
+import { mapApiProduct, parseRoute, routeToHash } from "@shared/lib/utils";
+import { apiAllOrders, apiCatalog, apiCreateOrder, apiLogin, apiManufacturers, apiOrders, apiProduct, apiRegister, apiDeleteProduct, apiUpdateOrder } from "@shared/api";
 import { buildSummary } from "@shared/catalog";
 import { CATALOG } from "@shared/data/catalog-data";
 import { PixelIcon } from "@shared/components/Common/PixelIcon";
@@ -19,14 +12,15 @@ import type {
   CatalogFilters,
   Product,
   Route,
+  UpdateOrderPayload
 } from "@shared/types";
 
 import { LoginPage } from "@shared/pages/Auth/LoginPage";
 import { RegisterPage } from "@shared/pages/Auth/RegisterPage";
 import { CatalogPage } from "@shared/pages/Catalog/CatalogPage";
 import { OrdersPage } from "@shared/pages/Orders/OrdersPage";
+import { AdminPage } from "@shared/pages/Admin/AdminPage";
 import { ProductPage } from "@shared/pages/Product/ProductPage";
-import { mapApiProduct, parseRoute, routeToHash } from "@shared/lib/utils";
 
 const STORAGE_KEY = "shoe-store.session";
 const PENDING_ORDER_KEY = "shoe-store.pending-order";
@@ -38,6 +32,8 @@ const DEFAULT_FILTERS: CatalogFilters = {
   onlyDiscounted: false,
   onlyInStock: false,
   sortBy: "name",
+  page: 1,
+  pageSize: 10,
 };
 
 const DEFAULT_LOGIN = { login: "", password: "" };
@@ -51,6 +47,7 @@ export default function App() {
   const [manufacturers, setManufacturers] = useState<string[]>(["all"]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [totalItems, setTotalItems] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -90,14 +87,17 @@ export default function App() {
     let active = true;
     setCatalogLoading(true);
     Promise.all([apiCatalog(catalogFilters), apiManufacturers()])
-      .then(([items, manufacturerList]) => {
+      .then(([response, manufacturerList]) => {
         if (!active) return;
-        setProducts(items.map(mapApiProduct));
+        setProducts(response.items.map(mapApiProduct));
+        setTotalItems(response.total);
         setManufacturers(["all", ...manufacturerList]);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("API error, falling back to mock data", e);
         if (!active) return;
         setProducts(CATALOG);
+        setTotalItems(CATALOG.length);
         setManufacturers(["all", ...new Set(CATALOG.map((p) => p.manufacturer))]);
       })
       .finally(() => {
@@ -202,6 +202,43 @@ export default function App() {
     }
   }
 
+  async function handleDeleteProduct(article: string) {
+    if (!auth) return;
+    try {
+      setBusy(true);
+      await apiDeleteProduct(auth.token, article);
+      setMessage("товар удален.");
+      const response = await apiCatalog(catalogFilters);
+      setProducts(response.items.map(mapApiProduct));
+      setTotalItems(response.total);
+      navigate({ name: "catalog" });
+    } catch (err) {
+      setMessage("ошибка при удалении товара.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateOrderStatus(number: number, status: string, deliveryDate?: string) {
+    if (!auth) return;
+    try {
+      setBusy(true);
+      const payload: UpdateOrderPayload = { status };
+      if (deliveryDate) payload.delivery_date = deliveryDate;
+      
+      await apiUpdateOrder(auth.token, number, payload);
+      setMessage("заказ обновлен.");
+      
+      // обновляем список заказов
+      const list = auth.role === "client" ? await apiOrders(auth.token) : await apiAllOrders(auth.token);
+      setOrders(list);
+    } catch (err) {
+      setMessage("ошибка при обновлении заказа.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function navigate(route: Route) {
     window.location.hash = routeToHash(route);
   }
@@ -237,6 +274,9 @@ export default function App() {
           <nav className="hidden md:flex items-center gap-2">
             <button onClick={() => navigate({ name: "catalog" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm">Каталог</button>
             <button onClick={() => navigate({ name: "orders" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm">Заказы</button>
+            {auth?.role === "admin" && (
+              <button onClick={() => navigate({ name: "admin" })} className="px-4 py-2 font-bold hover:underline uppercase text-sm text-red-600">Админ</button>
+            )}
             {auth ? (
               <div className="flex items-center gap-4 ml-4 pl-4 border-l-2 border-black">
                 <div className="text-right">
@@ -283,22 +323,20 @@ export default function App() {
                     exit={{ height: 0, opacity: 0 }}
                     className="md:hidden bg-white border-t-2 border-black overflow-hidden"
                 >
-                    <div className="flex flex-col p-4 gap-4">
+                    <nav className="flex flex-col gap-4 mt-8 px-4 pb-8">
                         <button onClick={() => navigate({ name: "catalog" })} className="text-left py-2 font-black uppercase border-b border-black/10">Каталог</button>
-                        <button onClick={() => navigate({ name: "orders" })} className="text-left py-2 font-black uppercase border-b border-black/10">Заказы</button>
-                        {!auth && (
-                            <button onClick={() => navigate({ name: "login" })} className="py-3 bg-[#00FA9A] border-2 border-black font-black uppercase text-center">Войти</button>
-                        )}
                         {auth && (
-                            <div className="flex items-center justify-between p-3 bg-gray-50 border-2 border-black">
-                                <div>
-                                    <p className="font-bold">{auth.fullName}</p>
-                                    <p className="text-[10px] uppercase opacity-60">{auth.role}</p>
-                                </div>
-                                <button onClick={handleLogout} className="p-2 border-2 border-black bg-white"><PixelIcon.Logout /></button>
-                            </div>
+                            <button onClick={() => navigate({ name: "orders" })} className="text-left py-2 font-black uppercase border-b border-black/10">Заказы</button>
                         )}
-                    </div>
+                        {auth?.role === "admin" && (
+                            <button onClick={() => navigate({ name: "admin" })} className="text-left py-2 font-black uppercase border-b border-black/10 text-red-600">Админ-панель</button>
+                        )}
+                        {!auth ? (
+                            <button onClick={() => navigate({ name: "login" })} className="text-left py-2 font-black uppercase border-b border-black/10">Вход</button>
+                        ) : (
+                            <button onClick={handleLogout} className="text-left py-2 font-black uppercase border-b border-black/10 text-red-600">Выход</button>
+                        )}
+                    </nav>
                 </motion.div>
             )}
         </AnimatePresence>
@@ -355,11 +393,53 @@ export default function App() {
       case "register":
         return <RegisterPage busy={busy} registerForm={registerForm} onRegisterChange={setRegisterForm} onRegisterSubmit={handleRegister} onNavigate={navigate} />;
       case "orders":
-        return <OrdersPage auth={auth} orders={orders} loading={ordersLoading} error={ordersError} onGoLogin={() => navigate({ name: "login" })} onRefresh={() => {}} onUpdateStatus={() => {}} />;
+        return <OrdersPage auth={auth} orders={orders} loading={ordersLoading} error={ordersError} onGoLogin={() => navigate({ name: "login" })} onRefresh={() => {}} onUpdateStatus={handleUpdateOrderStatus} />;
+      case "admin":
+        return <AdminPage auth={auth} onNavigate={navigate} setMessage={setMessage} />;
       case "product":
-        return <ProductPage auth={auth} product={selectedProduct} loading={catalogLoading && !selectedProduct} error={catalogError} onOrder={handleOrder} onGoLogin={() => navigate({ name: "login" })} onBack={() => navigate({ name: "catalog" })} />;
+        return (
+          <ProductPage 
+            auth={auth} 
+            product={selectedProduct} 
+            loading={catalogLoading && !selectedProduct} 
+            error={catalogError} 
+            onOrder={handleOrder} 
+            onEdit={() => navigate({ name: "product-edit", article: selectedProduct?.article })}
+            onDelete={handleDeleteProduct}
+            onGoLogin={() => navigate({ name: "login" })} 
+            onBack={() => navigate({ name: "catalog" })} 
+          />
+        );
+      case "product-edit":
+        return (
+          <ProductEditPage 
+            auth={auth} 
+            product={route.article ? (products.find(p => p.article === route.article) || selectedProduct) : null} 
+            onSave={() => {
+                apiCatalog(catalogFilters).then(response => setProducts(response.items.map(mapApiProduct)));
+                navigate({ name: "catalog" });
+            }}
+            onBack={() => navigate({ name: "catalog" })}
+          />
+        );
       default:
-        return <CatalogPage summary={summary} products={products} manufacturers={manufacturers} filters={catalogFilters} loading={catalogLoading} error={catalogError} onFiltersChange={setCatalogFilters} onOrder={handleOrder} onProduct={(article) => navigate({ name: "product", article })} defaultFilters={DEFAULT_FILTERS} />;
+        return (
+          <CatalogPage 
+            auth={auth}
+            summary={summary} 
+            products={products} 
+            manufacturers={manufacturers} 
+            filters={catalogFilters} 
+            loading={catalogLoading} 
+            error={catalogError}
+            totalItems={totalItems}
+            onFiltersChange={setCatalogFilters} 
+            onOrder={handleOrder} 
+            onProduct={(article) => navigate({ name: "product", article })} 
+            onAddProduct={() => navigate({ name: "product-edit" })}
+            defaultFilters={DEFAULT_FILTERS} 
+          />
+        );
     }
   }
 }

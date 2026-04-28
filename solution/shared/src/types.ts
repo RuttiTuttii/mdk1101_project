@@ -11,6 +11,7 @@ export type Product = {
   category: string;
   unit: string;
   price: number;
+  maxDiscountPercent: number;
   discountPercent: number;
   stockCount: number;
   imagePath?: string | null;
@@ -24,6 +25,15 @@ export type CatalogFilters = {
   onlyDiscounted: boolean;
   onlyInStock: boolean;
   sortBy: SortKey;
+  page: number;
+  pageSize: number;
+};
+
+export type ApiPaginatedResponse<T> = {
+    items: T[];
+    total: number;
+    page: number;
+    page_size: number;
 };
 
 // перечень ролей пользователей в системе
@@ -47,6 +57,7 @@ export type ApiProduct = {
   category: string;
   unit: string;
   price: string | number;
+  max_discount_percent: number;
   discount_percent: number;
   stock_count: number;
   image_path?: string | null;
@@ -76,10 +87,17 @@ export type ApiOrder = {
   items: ApiOrderItem[];
 };
 
+export type UpdateOrderPayload = {
+  status?: string;
+  delivery_date?: string;
+};
+
 // перечисление возможных маршрутов навигации фронтенда
 export type Route =
   | { name: "catalog" }
   | { name: "login" }
   | { name: "register" }
   | { name: "orders" }
-  | { name: "product"; article: string };
+  | { name: "admin" }
+  | { name: "product"; article: string }
+  | { name: "product-edit"; article?: string };

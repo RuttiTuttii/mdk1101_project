@@ -17,7 +17,7 @@ interface OrdersPageProps {
   error: string | null;
   onGoLogin: () => void;
   onRefresh: () => void;
-  onUpdateStatus: (number: number, newStatus: string) => Promise<void>;
+  onUpdateStatus: (number: number, newStatus: string, deliveryDate?: string) => Promise<void>;
 }
 
 export function OrdersPage({
@@ -28,28 +28,33 @@ export function OrdersPage({
   onGoLogin,
   onRefresh,
 }: OrdersPageProps) {
-  {/* заглушка для неавторизованного пользователя */}
+  // если не залогинен — показываем заглушку
   if (!auth) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center justify-center py-24 text-center border-4 border-black bg-white" 
-        style={{ fontFamily: "'Times New Roman', Times, serif" }}
-      >
-        <div className="h-20 w-20 mb-6"><PixelIcon.Package /></div>
-        <h2 className="text-3xl font-black uppercase mb-4">Ваши заказы</h2>
-        <p className="font-bold mb-8 max-w-sm">войдите в аккаунт для просмотра истории заказов</p>
-        <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onGoLogin}
-            className="px-10 py-4 border-4 border-black bg-[#00FA9A] font-black uppercase hover:bg-black hover:text-white transition-colors flex items-center gap-3"
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md bg-white border-4 border-black p-12 flex flex-col items-center text-center shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
         >
-          <PixelIcon.Login />
-          Войти в аккаунт
-        </motion.button>
-      </motion.div>
+          <div className="w-24 h-24 bg-white border-2 border-black flex items-center justify-center mb-8">
+            <div className="w-16 h-16">
+              <PixelIcon.Package />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold uppercase mb-4 tracking-tighter">история заказов пуста</h2>
+          <p className="text-gray-600 mb-8 lowercase">войдите в аккаунт, чтобы увидеть свои покупки и отслеживать статус доставки</p>
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onGoLogin}
+            className="w-full py-4 bg-[#00FA9A] text-black font-black uppercase border-4 border-black hover:bg-black hover:text-white transition-colors flex items-center justify-center gap-3"
+          >
+            <PixelIcon.Login />
+            войти в аккаунт
+          </motion.button>
+        </motion.div>
+      </div>
     );
   }
 
@@ -71,14 +76,13 @@ export function OrdersPage({
             {isAdmin ? "реестр всех заказов в информационной системе" : "история ваших покупок"}
           </p>
         </div>
-        <motion.button 
-            whileHover={{ rotate: 180 }}
+        <button 
             onClick={onRefresh}
             className="p-3 border-2 border-black bg-white font-bold hover:bg-black hover:text-white transition-colors uppercase text-sm flex items-center gap-2"
         >
           <PixelIcon.Refresh />
           {loading ? "обновление..." : "обновить данные"}
-        </motion.button>
+        </button>
       </motion.div>
 
       {error && (
@@ -91,15 +95,18 @@ export function OrdersPage({
         </motion.div>
       )}
 
-      {/* отображение при отсутствии заказов */}
+      {/* если заказов нет — показываем белый бокс с иконкой по центру */}
       {orders.length === 0 && !loading ? (
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="border-4 border-black p-20 text-center bg-white"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="border-4 border-black p-20 text-center bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center"
         >
-          <div className="h-16 w-16 mx-auto mb-4 opacity-20"><PixelIcon.Package /></div>
-          <h3 className="text-xl font-bold uppercase">Заказов пока нет</h3>
+          <div className="w-32 h-32 bg-white border-4 border-black flex items-center justify-center mb-8 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+             <PixelIcon.Package width={64} height={64} />
+           </div>
+          <h3 className="text-2xl font-black uppercase tracking-tighter">заказов пока нет</h3>
+          <p className="font-bold opacity-50 lowercase mt-2">ваша история покупок пуста, но это можно исправить в каталоге</p>
         </motion.div>
       ) : (
         <div className="space-y-6">
@@ -152,6 +159,36 @@ export function OrdersPage({
                     </tbody>
                   </table>
                 </div>
+
+                  {/* кнопки управления для персонала */}
+                  {isAdmin && (
+                    <div className="p-4 border-t-4 border-black bg-white flex flex-wrap items-center gap-6">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black uppercase opacity-50">статус заказа</label>
+                            <select 
+                                value={order.status}
+                                onChange={(e) => onUpdateStatus(order.number, e.target.value)}
+                                className="border-2 border-black p-1 font-bold text-xs uppercase outline-none focus:bg-[#E0F2FE]"
+                            >
+                                {Object.entries(STATUS_MAP).map(([key, val]) => (
+                                    <option key={key} value={key}>{val}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black uppercase opacity-50">дата доставки</label>
+                            <input 
+                                type="date"
+                                value={new Date(order.delivery_date).toISOString().split("T")[0]}
+                                onChange={(e) => {
+                                    // по тз менеджер может менять и дату тоже
+                                    onUpdateStatus(order.number, order.status, e.target.value);
+                                }}
+                                className="border-2 border-black p-1 font-bold text-xs uppercase outline-none focus:bg-[#E0F2FE]"
+                            />
+                        </div>
+                    </div>
+                  )}
 
                 {/* дополнительная информация о заказе */}
                 <div className="p-4 bg-gray-50 flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-8 text-[10px] sm:text-xs font-bold uppercase border-t border-black">

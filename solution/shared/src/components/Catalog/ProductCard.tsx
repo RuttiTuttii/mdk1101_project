@@ -22,13 +22,13 @@ export function ProductCard({
   
   // определение цвета фона на основе условий тз
   const getBgColor = () => {
-    if (isHighDiscount) return "#2E8B57";
-    if (isOutOfStock) return "#E0F2FE";
+    if (isOutOfStock) return "#0000ff"; // синий для пустых остатков
+    if (isHighDiscount) return "#7fff00"; // салатовый для больших скидок
     return "#FFFFFF";
   };
 
   const bgColor = getBgColor();
-  const textColor = isHighDiscount ? "#FFFFFF" : "#000000";
+  const textColor = isOutOfStock ? "#FFFFFF" : "#000000";
 
   return (
     <motion.div 
@@ -55,7 +55,7 @@ export function ProductCard({
       <div className="w-full md:w-48 h-48 md:h-48 border border-black flex-shrink-0 bg-white flex items-center justify-center overflow-hidden group">
         <motion.img
           whileHover={{ scale: 1.1 }}
-          src={product.imagePath ?? "/picture.png"}
+          src={product.imagePath || "/picture.png"}
           alt={product.name}
           className="w-full h-full object-contain p-2"
           onError={(e) => {
