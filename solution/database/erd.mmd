@@ -1,0 +1,67 @@
+erDiagram
+    ROLES {
+        INTEGER id PK
+        VARCHAR_50 name UK
+    }
+
+    USERS {
+        INTEGER id PK
+        VARCHAR_255 login UK
+        VARCHAR_255 full_name
+        INTEGER role_id FK
+        VARCHAR_255 password_hash
+    }
+
+    CATEGORIES {
+        INTEGER id PK
+        VARCHAR_255 name UK
+    }
+
+    MANUFACTURERS {
+        INTEGER id PK
+        VARCHAR_255 name UK
+    }
+
+    SUPPLIERS {
+        INTEGER id PK
+        VARCHAR_255 name UK
+    }
+
+    PRODUCTS {
+        VARCHAR_50 article PK
+        VARCHAR_255 name
+        TEXT description
+        INTEGER manufacturer_id FK
+        INTEGER supplier_id FK
+        INTEGER category_id FK
+        VARCHAR_50 unit
+        NUMERIC_10_2 price
+        INTEGER discount_percent
+        INTEGER stock_count
+        VARCHAR_500 image_path
+    }
+
+    ORDERS {
+        INTEGER id PK
+        INTEGER user_id FK
+        DATE created_at
+        DATE delivery_date
+        INTEGER pickup_code
+        VARCHAR_50 status
+    }
+
+    ORDER_ITEMS {
+        INTEGER id PK
+        INTEGER order_id FK
+        VARCHAR_50 product_article FK
+        INTEGER quantity
+        NUMERIC_10_2 unit_price
+    }
+
+    ROLES ||--o{ USERS : has
+    USERS ||--o{ ORDERS : places
+    CATEGORIES ||--o{ PRODUCTS : categorizes
+    MANUFACTURERS ||--o{ PRODUCTS : produces
+    SUPPLIERS ||--o{ PRODUCTS : supplies
+    PRODUCTS ||--o{ ORDER_ITEMS : appears_in
+    ORDERS ||--o{ ORDER_ITEMS : contains
