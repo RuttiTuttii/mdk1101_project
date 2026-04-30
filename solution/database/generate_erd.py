@@ -23,6 +23,59 @@ COL_GAP = 60
 ROW_GAP = 80
 
 
+def center(box):
+    x, y, w, h = box
+    return x + w / 2, y + h / 2
+
+
+def anchor_point(box, toward_x, toward_y):
+    """выбираем точку привязки на границе таблицы."""
+    x, y, w, h = box
+    cx, cy = center(box)
+    dx = toward_x - cx
+    dy = toward_y - cy
+
+    if abs(dx) >= abs(dy):
+        if dx >= 0:
+            return x + w, cy, "right"
+        return x, cy, "left"
+
+    if dy >= 0:
+        return cx, y + h, "bottom"
+    return cx, y, "top"
+
+
+def route_points(src_box, dst_box):
+    """строим ортогональный маршрут между таблицами."""
+    sx, sy = center(src_box)
+    dx, dy = center(dst_box)
+    start_x, start_y, start_side = anchor_point(src_box, dx, dy)
+    end_x, end_y, end_side = anchor_point(dst_box, sx, sy)
+
+    points = [(start_x, start_y)]
+
+    # если соединяем одинаковые стороны, делаем аккуратный внешний обход
+    if start_side in {"left", "right"} and end_side in {"left", "right"}:
+        mid_x = (start_x + end_x) / 2
+        points.extend([(mid_x, start_y), (mid_x, end_y)])
+    elif start_side in {"top", "bottom"} and end_side in {"top", "bottom"}:
+        mid_y = (start_y + end_y) / 2
+        points.extend([(start_x, mid_y), (end_x, mid_y)])
+    else:
+        # смешанный случай: сначала уходим от таблицы по нормали, потом выравниваемся
+        if start_side in {"left", "right"}:
+            offset = 28 if start_side == "right" else -28
+            bend_x = start_x + offset
+            points.extend([(bend_x, start_y), (bend_x, end_y)])
+        else:
+            offset = 28 if start_side == "bottom" else -28
+            bend_y = start_y + offset
+            points.extend([(start_x, bend_y), (end_x, bend_y)])
+
+    points.append((end_x, end_y))
+    return points
+
+
 def text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -61,17 +114,24 @@ def draw_table(draw, x, y, name, columns, font, header_font):
     return h
 
 
-def draw_arrow(draw, x1, y1, x2, y2):
-    """рисуем линию связи."""
-    draw.line([(x1, y1), (x2, y2)], fill=LINE_COLOR, width=2)
-    # стрелка
+def draw_arrow(draw, points):
+    """рисуем ломаную связь со стрелкой на конце."""
+    if len(points) < 2:
+        return
+
+    draw.line(points, fill=LINE_COLOR, width=2)
+
+    # стрелка по последнему сегменту, чтобы наконечник был всегда в конце связи
     import math
+
+    (x1, y1), (x2, y2) = points[-2], points[-1]
     angle = math.atan2(y2 - y1, x2 - x1)
-    arrow_len = 10
-    ax = x2 - arrow_len * math.cos(angle - 0.4)
-    ay = y2 - arrow_len * math.sin(angle - 0.4)
-    bx = x2 - arrow_len * math.cos(angle + 0.4)
-    by = y2 - arrow_len * math.sin(angle + 0.4)
+    arrow_len = 12
+    arrow_angle = 0.45
+    ax = x2 - arrow_len * math.cos(angle - arrow_angle)
+    ay = y2 - arrow_len * math.sin(angle - arrow_angle)
+    bx = x2 - arrow_len * math.cos(angle + arrow_angle)
+    by = y2 - arrow_len * math.sin(angle + arrow_angle)
     draw.polygon([(x2, y2), (int(ax), int(ay)), (int(bx), int(by))], fill=LINE_COLOR)
 
 
@@ -183,18 +243,10 @@ def main():
 
     # рисуем связи
     for src, dst in edges:
-        sx, sy, sw, sh = table_boxes[src]
-        dx, dy, dw, dh = table_boxes[dst]
-        # центры таблиц
-        cx1 = sx + sw
-        cy1 = sy + sh // 2
-        cx2 = dx
-        cy2 = dy + dh // 2
-        # если источник правее — корректируем
-        if sx > dx:
-            cx1 = sx
-            cx2 = dx + dw
-        draw_arrow(draw, cx1, cy1, cx2, cy2)
+        src_box = table_boxes[src]
+        dst_box = table_boxes[dst]
+        points = route_points(src_box, dst_box)
+        draw_arrow(draw, points)
 
     # легенда
     lx, ly = 50, img_h - 60
