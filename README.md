@@ -19,8 +19,11 @@
    - в коде это выполнено через `solution/backend/app/importer.py`, `solution/backend/app/seed.py`, `solution/backend/app/models.py`, `solution/backend/app/crud.py`.
    - состав заказа вынесен в отдельную таблицу позиций заказа, а справочники производителей, поставщиков и категорий реализованы отдельными сущностями.
    - база построена в sqlite, схема хранится в `solution/database/schema.sql`.
-   - erd сохранена в `solution/database/erd.png`.
+   - erd сохранена в `solution/database/erd.png` и отображается ниже прямо в `README.md`.
+   - исходник схемы для пересборки лежит в `solution/database/generate_erd.py`.
    - исходные файлы импорта лежат в `Задание/import`, а выгрузки таблиц после импорта - в `solution/database/exports`.
+
+   ![erd](solution/database/erd.png)
 
 2. задание 2, решение и библиотека классов:
    - в тз требовалось собрать решение с библиотекой классов, веб-api, веб-приложением и оконным приложением.
