@@ -23,7 +23,8 @@
    - исходник схемы для пересборки лежит в `solution/database/generate_erd.py`.
    - исходные файлы импорта лежат в `Задание/import`, а выгрузки таблиц после импорта - в `solution/database/exports`.
 
-   ![erd](solution/database/erd.png)
+   ![erd](<img width="1200" height="800" alt="image" src="https://github.com/user-attachments/assets/ebef55c0-aedb-49fe-b195-4ef4901f1614" />
+)
 
 2. задание 2, решение и библиотека классов:
    - в тз требовалось собрать решение с библиотекой классов, веб-api, веб-приложением и оконным приложением.
